@@ -6,10 +6,16 @@
 <title>圆弧</title>
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;overflow:hidden;background:#0d1117;
+  html,body{margin:0;height:100%;overflow:hidden;
     font-family:ui-monospace,Menlo,Consolas,monospace;color:#c9d1d9;
     -webkit-user-select:none;user-select:none;touch-action:none}
   canvas{display:block;touch-action:none}
+
+  /* 主界面背景（非悬浮窗） */
+  body.mode-main{background:#0d1117}
+  /* 悬浮窗背景：全透明 */
+  body.mode-floating{background:transparent}
+  html.mode-floating{background:transparent}
 
   #panel{position:fixed;top:14px;left:14px;width:280px;
     background:rgba(22,27,34,.92);border:1px solid #30363d;border-radius:10px;
@@ -136,6 +142,14 @@
 
   var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
 
+  // ★ 主界面 / 悬浮窗 背景类
+  if (isFloating) {
+    document.body.classList.add('mode-floating');
+    document.documentElement.classList.add('mode-floating');
+  } else {
+    document.body.classList.add('mode-main');
+  }
+
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
@@ -198,7 +212,6 @@
     vK.textContent = (1 / R).toExponential(3) + ' px⁻¹';
   }
 
-  // 半径 +/- 长按
   var holdTimeout = null;
   var holdInterval = null;
 
@@ -241,7 +254,6 @@
     if (e.key === 'Escape') { updatePanel(); vR.blur(); }
   });
 
-  // 交互
   var drag = null;
   var last = { x: 0, y: 0 };
   var rawTheta = 0;
@@ -357,7 +369,6 @@
   });
   cv.addEventListener('pointercancel', function () { drag = null; });
 
-  // UI
   var vL = document.getElementById('vL');
   var vT = document.getElementById('vT');
   var vA = document.getElementById('vA');
@@ -375,6 +386,17 @@
     var collapsed = panel.classList.toggle('collapsed');
     bToggle.textContent = collapsed ? '▼' : '■';
   });
+
+  // ★ 供 Android 原生代码调用的折叠/展开函数
+  window.__setPanelCollapsed = function (collapsed) {
+    if (collapsed) {
+      panel.classList.add('collapsed');
+      bToggle.textContent = '▼';
+    } else {
+      panel.classList.remove('collapsed');
+      bToggle.textContent = '■';
+    }
+  };
 
   bReset.addEventListener('click', reset);
 
@@ -411,7 +433,6 @@
     file.value = '';
   });
 
-  // 悬浮窗按钮
   var bFloating = document.getElementById('bFloating');
   if (isFloating) {
     bFloating.style.display = 'none';
