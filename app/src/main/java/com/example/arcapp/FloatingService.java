@@ -78,6 +78,10 @@ public class FloatingService extends Service {
     private void createWebView() {
         webView = new WebView(this);
 
+        // ★ 关键：让 WebView 自己那层也透明
+        webView.setBackgroundColor(0x00000000);
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
@@ -198,6 +202,12 @@ public class FloatingService extends Service {
         }
         if (viewAdded) {
             wm.updateViewLayout(webView, webParams);
+        }
+
+        // ★ 通知 HTML 折叠 / 展开面板
+        if (webView != null) {
+            String js = "window.__setPanelCollapsed && window.__setPanelCollapsed(" + locked + ");";
+            webView.evaluateJavascript(js, null);
         }
     }
 
