@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>圆弧</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0d1117;
+    font-family:ui-monospace,Menlo,Consolas,monospace;color:#c9d1d9;
+    -webkit-user-select:none;user-select:none;touch-action:none}
+  canvas{display:block;touch-action:none}
+
+  #panel{position:fixed;top:14px;left:14px;width:280px;
+    background:rgba(22,27,34,.92);border:1px solid #30363d;border-radius:10px;
+    padding:14px 16px;font-size:12px;line-height:1.8;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+    user-select:none;z-index:10}
+
+  #titleRow{display:flex;align-items:center;gap:8px}
+  #titleRow h1{margin:0;font-size:13px;color:#58a6ff;letter-spacing:.5px}
+  #bToggle{width:22px;height:22px;flex:0 0 auto;
+    background:#21262d;border:1px solid #30363d;border-radius:5px;
+    color:#c9d1d9;font-size:12px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;
+    font-family:inherit}
+  #bToggle:hover{background:#30363d}
+
+  #panel.collapsed{width:auto;padding:8px}
+  #panel.collapsed #titleRow h1{display:none}
+  #panel.collapsed #body{display:none}
+
+  #body{margin-top:10px}
+  .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .row > span:last-child{color:#7ee787;text-align:right}
+  hr{border:0;border-top:1px solid #30363d;margin:10px 0}
+  input[type=range]{width:100%;accent-color:#58a6ff;margin:4px 0 0}
+  .btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .btns button{flex:1;background:#21262d;color:#c9d1d9;border:1px solid #30363d;
+    border-radius:6px;padding:6px 0;cursor:pointer;font-family:inherit;font-size:12px}
+  .btns button:hover{background:#30363d}
+  .btns button.on{background:#f0883e;border-color:#f0883e;color:#fff}
+  .hint{margin-top:12px;color:#8b949e;font-size:11px;line-height:1.7}
+
+  .r-ctrl{display:flex;align-items:center;gap:4px}
+  .r-btn{width:20px;height:20px;padding:0;flex:0 0 auto;
+    background:#21262d;border:1px solid #30363d;border-radius:4px;
+    color:#c9d1d9;font-size:12px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    font-family:inherit}
+  .r-btn:hover{background:#30363d}
+  .r-btn:active{background:#1f6feb}
+  .r-val{width:62px;padding:1px 4px;background:transparent;
+    border:1px solid transparent;border-radius:4px;
+    color:#7ee787;font-family:inherit;font-size:12px;
+    text-align:right;outline:none}
+  .r-val:hover{border-color:#30363d}
+  .r-val:focus{border-color:#58a6ff;background:#0d1117}
+  .r-unit{color:#8b949e;font-size:11px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="panel">
+  <div id="titleRow">
+    <button id="bToggle" title="折叠 / 展开">■</button>
+    <h1>圆弧 · 1:1 真实像素</h1>
+  </div>
+
+  <div id="body">
+    <div class="row">
+      <span>半径 R</span>
+      <span class="r-ctrl">
+        <button class="r-btn" id="bRMinus">−</button>
+        <input class="r-val" id="vR" value="3765.47" inputmode="decimal">
+        <button class="r-btn" id="bRPlus">+</button>
+        <span class="r-unit">px</span>
+      </span>
+    </div>
+    <div class="row"><span>直径 D</span><span id="vD">7530.94 px</span></div>
+    <div class="row"><span>曲率 k</span><span id="vK">2.656e-4 px⁻¹</span></div>
+    <hr>
+    <div class="row"><span>弧长 L</span><span id="vL">100 px</span></div>
+    <input type="range" id="sL" min="0" max="1000" value="4">
+    <div class="row"><span>圆心角 θ</span><span id="vT">0.0°</span></div>
+    <div class="row"><span>起始角 α</span><span id="vA">0.0°</span></div>
+    <hr>
+    <div class="row"><span>圆心 (屏幕 px)</span><span id="vC">-</span></div>
+    <div class="btns">
+      <button id="bReset">重置</button>
+      <button id="bRotate">旋转</button>
+    </div>
+    <div class="btns">
+      <button id="bLoad">载入图片</button>
+      <button id="bClear">清除背景</button>
+    </div>
+    <div class="btns">
+      <button id="bFloating">悬浮窗</button>
+    </div>
+    <div class="hint">
+      拖动绿色终点 → 改弧长<br>
+      拖动空白 → 平移圆弧<br>
+      Shift + 拖动 → 旋转圆弧<br>
+      旋转模式：拖终点自由改弧长和角度
+    </div>
+  </div>
+
+  <input type="file" id="file" accept="image/*" hidden>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var R = 3765.47;
+  var R_MIN = 1000;
+  var R_MAX = 4000;
+  var R_INITIAL = 3765.47;
+  var TAU  = Math.PI * 2;
+  var HIT_RADIUS = 40;
+  var INITIAL_L = 100;
+
+  var cv  = document.getElementById('c');
+  var ctx = cv.getContext('2d');
+  var W = 0, H = 0, DPR = 1;
+
+  var cx = 0, cy = 0;
+  var alpha = -Math.PI / 2;
+  var signedArc = INITIAL_L / R_INITIAL;
+  var bgImage = null;
+
+  var rotateMode = false;
+  var pivotS = null;
+  var cPrev = null;
+
+  var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+    cv.width  = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    cv.style.width  = W + 'px';
+    cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    if (cx === 0 && cy === 0) reset();
+  }
+  window.addEventListener('resize', resize);
+
+  function reset() {
+    R = R_INITIAL;
+    cx = W / 2;
+    cy = H / 2 + R;
+    alpha = -Math.PI / 2;
+    signedArc = INITIAL_L / R;
+    if (rotateMode) exitRotateMode();
+    sL.value = Math.round(INITIAL_L / (TAU * R) * 1000);
+    updatePanel();
+  }
+
+  function enterRotateMode() {
+    rotateMode = true;
+    pivotS = {
+      x: cx + R * Math.cos(alpha),
+      y: cy + R * Math.sin(alpha)
+    };
+    cPrev = { x: cx, y: cy };
+    bRotate.textContent = '退出旋转';
+    bRotate.classList.add('on');
+  }
+
+  function exitRotateMode() {
+    rotateMode = false;
+    pivotS = null;
+    cPrev = null;
+    bRotate.textContent = '旋转';
+    bRotate.classList.remove('on');
+  }
+
+  function setR(newR) {
+    newR = Math.max(R_MIN, Math.min(R_MAX, newR));
+    if (Math.abs(newR - R) < 1e-9) return;
+    R = newR;
+
+    if (rotateMode && pivotS) {
+      cx = pivotS.x - R * Math.cos(alpha);
+      cy = pivotS.y - R * Math.sin(alpha);
+      cPrev = { x: cx, y: cy };
+    }
+    updatePanel();
+  }
+
+  function updatePanel() {
+    if (document.activeElement !== vR) vR.value = R.toFixed(2);
+    vD.textContent = (2 * R).toFixed(2) + ' px';
+    vK.textContent = (1 / R).toExponential(3) + ' px⁻¹';
+  }
+
+  // 半径 +/- 长按
+  var holdTimeout = null;
+  var holdInterval = null;
+
+  function startHold(delta) {
+    setR(R + delta);
+    holdTimeout = setTimeout(function () {
+      holdInterval = setInterval(function () { setR(R + delta); }, 100);
+    }, 400);
+  }
+  function stopHold() {
+    if (holdTimeout) { clearTimeout(holdTimeout); holdTimeout = null; }
+    if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
+  }
+
+  var bRPlus  = document.getElementById('bRPlus');
+  var bRMinus = document.getElementById('bRMinus');
+  var vR      = document.getElementById('vR');
+  var vD      = document.getElementById('vD');
+  var vK      = document.getElementById('vK');
+
+  bRPlus.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(1); });
+  bRPlus.addEventListener('pointerup', stopHold);
+  bRPlus.addEventListener('pointerleave', stopHold);
+  bRPlus.addEventListener('pointercancel', stopHold);
+
+  bRMinus.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(-1); });
+  bRMinus.addEventListener('pointerup', stopHold);
+  bRMinus.addEventListener('pointerleave', stopHold);
+  bRMinus.addEventListener('pointercancel', stopHold);
+
+  vR.addEventListener('focus', function () { vR.select(); });
+  vR.addEventListener('blur', function () {
+    var val = parseFloat(vR.value);
+    if (isNaN(val)) { updatePanel(); return; }
+    setR(val);
+    updatePanel();
+  });
+  vR.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter')  { e.preventDefault(); vR.blur(); }
+    if (e.key === 'Escape') { updatePanel(); vR.blur(); }
+  });
+
+  // 交互
+  var drag = null;
+  var last = { x: 0, y: 0 };
+  var rawTheta = 0;
+  var lastAngle = 0;
+
+  cv.addEventListener('pointerdown', function (e) {
+    var mx = e.clientX, my = e.clientY;
+
+    var a1 = alpha + signedArc;
+    var ex = cx + R * Math.cos(a1);
+    var ey = cy + R * Math.sin(a1);
+    var dEnd = Math.hypot(mx - ex, my - ey);
+
+    if (dEnd < HIT_RADIUS) {
+      if (rotateMode) {
+        drag = 'end-rotate';
+      } else {
+        drag = 'end';
+        lastAngle = Math.atan2(my - cy, mx - cx);
+        rawTheta = Math.abs(signedArc);
+      }
+    } else if (rotateMode) {
+      drag = null;
+    } else {
+      drag = e.shiftKey ? 'rotate' : 'pan';
+      last.x = mx;
+      last.y = my;
+    }
+    cv.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  cv.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var mx = e.clientX, my = e.clientY;
+
+    if (drag === 'end') {
+      var curAngle = Math.atan2(my - cy, mx - cx);
+      var delta = curAngle - lastAngle;
+      while (delta >  Math.PI) delta -= TAU;
+      while (delta < -Math.PI) delta += TAU;
+      rawTheta += delta;
+      lastAngle = curAngle;
+      var t = Math.max(0, Math.min(TAU, rawTheta));
+      signedArc = t;
+      sL.value = Math.round(t / TAU * 1000);
+      return;
+    }
+
+    if (drag === 'end-rotate') {
+      var S = pivotS;
+      var fx = mx, fy = my;
+      var dx = fx - S.x, dy = fy - S.y;
+      var d = Math.hypot(dx, dy);
+      if (d < 0.5) return;
+
+      var D = 2 * R;
+      if (d > D) {
+        var kk = D / d;
+        fx = S.x + dx * kk;
+        fy = S.y + dy * kk;
+        d = D;
+      }
+
+      var mx2 = (S.x + fx) / 2;
+      var my2 = (S.y + fy) / 2;
+      var ux = (fx - S.x) / d;
+      var uy = (fy - S.y) / d;
+      var nx = -uy, ny = ux;
+      var h = Math.sqrt(Math.max(0, R * R - (d * d) / 4));
+
+      var c1x = mx2 + nx * h, c1y = my2 + ny * h;
+      var c2x = mx2 - nx * h, c2y = my2 - ny * h;
+      var dist1 = Math.hypot(c1x - cPrev.x, c1y - cPrev.y);
+      var dist2 = Math.hypot(c2x - cPrev.x, c2y - cPrev.y);
+
+      var ncx, ncy;
+      if (dist1 < dist2) { ncx = c1x; ncy = c1y; }
+      else               { ncx = c2x; ncy = c2y; }
+
+      cx = ncx; cy = ncy;
+      alpha = Math.atan2(S.y - cy, S.x - cx);
+
+      var beta = Math.atan2(fy - cy, fx - cx);
+      var dlt = beta - alpha;
+      while (dlt >  Math.PI) dlt -= TAU;
+      while (dlt < -Math.PI) dlt += TAU;
+      signedArc = dlt;
+
+      cPrev = { x: cx, y: cy };
+      sL.value = Math.round(Math.abs(dlt) / TAU * 1000);
+      return;
+    }
+
+    var ddx = mx - last.x;
+    var ddy = my - last.y;
+
+    if (drag === 'pan') {
+      cx += ddx;
+      cy += ddy;
+    } else {
+      var aNow = Math.atan2(my - cy, mx - cx);
+      var aOld = Math.atan2(last.y - cy, last.x - cx);
+      alpha += aNow - aOld;
+    }
+    last.x = mx;
+    last.y = my;
+  });
+
+  cv.addEventListener('pointerup', function (e) {
+    drag = null;
+    try { cv.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
+  cv.addEventListener('pointercancel', function () { drag = null; });
+
+  // UI
+  var vL = document.getElementById('vL');
+  var vT = document.getElementById('vT');
+  var vA = document.getElementById('vA');
+  var vC = document.getElementById('vC');
+  var sL = document.getElementById('sL');
+  var bReset = document.getElementById('bReset');
+  var bRotate = document.getElementById('bRotate');
+  var bLoad = document.getElementById('bLoad');
+  var bClear = document.getElementById('bClear');
+  var file = document.getElementById('file');
+  var panel = document.getElementById('panel');
+  var bToggle = document.getElementById('bToggle');
+
+  bToggle.addEventListener('click', function () {
+    var collapsed = panel.classList.toggle('collapsed');
+    bToggle.textContent = collapsed ? '▼' : '■';
+  });
+
+  bReset.addEventListener('click', reset);
+
+  bRotate.addEventListener('click', function () {
+    if (rotateMode) exitRotateMode();
+    else enterRotateMode();
+  });
+
+  sL.addEventListener('input', function () {
+    var t = sL.value / 1000;
+    signedArc = t * TAU;
+  });
+
+  bLoad.addEventListener('click', function () { file.click(); });
+
+  file.addEventListener('change', function () {
+    var f = file.files && file.files[0];
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    var img = new Image();
+    img.onload = function () {
+      bgImage = img;
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      alert('图片载入失败');
+    };
+    img.src = url;
+  });
+
+  bClear.addEventListener('click', function () {
+    bgImage = null;
+    file.value = '';
+  });
+
+  // 悬浮窗按钮
+  var bFloating = document.getElementById('bFloating');
+  if (isFloating) {
+    bFloating.style.display = 'none';
+  }
+  bFloating.addEventListener('click', function () {
+    if (window.AndroidBridge && window.AndroidBridge.startFloating) {
+      window.AndroidBridge.startFloating();
+    } else {
+      alert('请在安卓 App 内使用悬浮窗功能');
+    }
+  });
+
+  function updateUI() {
+    var L = Math.abs(signedArc) * R;
+    vL.textContent = Math.round(L).toLocaleString() + ' px';
+    var deg = (L / R) * 180 / Math.PI;
+    vT.textContent = deg.toFixed(2) + '°';
+    var a = (alpha * 180 / Math.PI) % 360;
+    if (a < 0) a += 360;
+    vA.textContent = a.toFixed(1) + '°';
+    vC.textContent = Math.round(cx) + ', ' + Math.round(cy);
+  }
+
+  function drawBackground() {
+    if (!bgImage) return;
+    var iw = bgImage.width;
+    var ih = bgImage.height;
+    if (!iw || !ih) return;
+    var s = Math.min(W / iw, H / ih);
+    var dw = iw * s;
+    var dh = ih * s;
+    var dx = (W - dw) / 2;
+    var dy = (H - dh) / 2;
+    ctx.drawImage(bgImage, dx, dy, dw, dh);
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+    drawBackground();
+
+    var sr = R;
+    var a0 = alpha;
+    var a1 = alpha + signedArc;
+    var L  = Math.abs(signedArc) * R;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, sr, 0, TAU);
+    ctx.strokeStyle = 'rgba(88,166,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 10]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (L > 0.01) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + sr * Math.cos(a0), cy + sr * Math.sin(a0));
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + sr * Math.cos(a1), cy + sr * Math.sin(a1));
+      ctx.strokeStyle = 'rgba(126,231,135,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      var N = Math.max(64, Math.min(2000, Math.ceil(sr * Math.abs(signedArc) / 1.5)));
+      ctx.beginPath();
+      for (var i = 0; i <= N; i++) {
+        var aa = a0 + (a1 - a0) * (i / N);
+        var x = cx + sr * Math.cos(aa);
+        var y = cy + sr * Math.sin(aa);
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.save();
+      ctx.shadowColor = 'rgba(126,231,135,0.9)';
+      ctx.shadowBlur = 14;
+      ctx.strokeStyle = '#7ee787';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    var sx = cx + sr * Math.cos(a0);
+    var sy = cy + sr * Math.sin(a0);
+    if (rotateMode) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 16, 0, TAU);
+      ctx.strokeStyle = '#f0883e';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(sx, sy, 8, 0, TAU);
+      ctx.fillStyle = '#58a6ff';
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 7, 0, TAU);
+      ctx.fillStyle = '#58a6ff';
+      ctx.fill();
+    }
+
+    var ex = cx + sr * Math.cos(a1);
+    var ey = cy + sr * Math.sin(a1);
+    ctx.beginPath();
+    ctx.arc(ex, ey, 9, 0, TAU);
+    ctx.fillStyle = 'rgba(126,231,135,0.25)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(ex, ey, 6, 0, TAU);
+    ctx.fillStyle = '#7ee787';
+    ctx.fill();
+
+    if (cx > -50 && cx < W + 50 && cy > -50 && cy < H + 50) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 11, 0, TAU);
+      ctx.strokeStyle = 'rgba(240,136,62,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, TAU);
+      ctx.fillStyle = '#f0883e';
+      ctx.fill();
+    }
+  }
+
+  function tick() {
+    render();
+    updateUI();
+    requestAnimationFrame(tick);
+  }
+
+  resize();
+  reset();
+  requestAnimationFrame(tick);
+
+})();
+</script>
+</body>
+</html>
