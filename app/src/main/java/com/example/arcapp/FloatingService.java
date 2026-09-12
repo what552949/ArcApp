@@ -11,7 +11,9 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -38,6 +40,22 @@ public class FloatingService extends Service {
 
     private ValueCallback<Uri[]> filePathCallback;
     private static final int LOCK_SIZE_DP = 56;
+
+    // 三击关闭相关
+    private final Handler lockHandler = new Handler(Looper.getMainLooper());
+    private long lastClickTime = 0;
+    private int clickCount = 0;
+    private static final long MULTI_CLICK_WINDOW = 400L;   // 相邻点击间隔窗口(ms)
+
+    private final Runnable clickResolver = new Runnable() {
+        @Override
+        public void run() {
+            if (clickCount == 1 || clickCount == 2) {
+                toggleLock();
+            }
+            clickCount = 0;
+        }
+    };
 
     @Override
     public void onCreate() {
@@ -77,8 +95,6 @@ public class FloatingService extends Service {
 
     private void createWebView() {
         webView = new WebView(this);
-
-        // ★ 关键：让 WebView 自己那层也透明
         webView.setBackgroundColor(0x00000000);
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
@@ -179,7 +195,7 @@ public class FloatingService extends Service {
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
                         if (!moved && System.currentTimeMillis() - downTime < 600) {
-                            toggleLock();
+                            onLockClick();
                         }
                         return true;
                 }
@@ -188,6 +204,32 @@ public class FloatingService extends Service {
         });
 
         wm.addView(lockButton, lockParams);
+    }
+
+    // 点击分发：1~2 次 → 切换锁定；3 次 → 关闭悬浮窗
+    private void onLockClick() {
+        long now = System.currentTimeMillis();
+
+        if (now - lastClickTime > MULTI_CLICK_WINDOW) {
+            clickCount = 0;
+            lockHandler.removeCallbacks(clickResolver);
+        }
+        lastClickTime = now;
+        clickCount++;
+
+        if (clickCount >= 3) {
+            clickCount = 0;
+            lockHandler.removeCallbacks(clickResolver);
+            closeFloating();
+            return;
+        }
+
+        lockHandler.removeCallbacks(clickResolver);
+        lockHandler.postDelayed(clickResolver, MULTI_CLICK_WINDOW);
+    }
+
+    private void closeFloating() {
+        stopSelf();
     }
 
     private void toggleLock() {
@@ -204,7 +246,6 @@ public class FloatingService extends Service {
             wm.updateViewLayout(webView, webParams);
         }
 
-        // ★ 通知 HTML 折叠 / 展开面板
         if (webView != null) {
             String js = "window.__setPanelCollapsed && window.__setPanelCollapsed(" + locked + ");";
             webView.evaluateJavascript(js, null);
@@ -226,6 +267,7 @@ public class FloatingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         viewAdded = false;
+        lockHandler.removeCallbacks(clickResolver);
         if (webView != null) {
             try { wm.removeView(webView); } catch (Exception ignored) {}
             webView.destroy();
