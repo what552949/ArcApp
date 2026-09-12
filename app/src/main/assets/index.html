@@ -15,11 +15,13 @@
   body.mode-floating{background:transparent}
   html.mode-floating{background:transparent}
 
-  #panel{position:fixed;top:14px;left:14px;width:280px;
+  #panel{position:fixed;top:14px;left:14px;
     background:rgba(22,27,34,.92);border:1px solid #30363d;border-radius:10px;
-    padding:14px 16px;font-size:12px;line-height:1.8;
+    padding:10px 14px;font-size:12px;line-height:1.7;
     box-shadow:0 8px 24px rgba(0,0,0,.45);
     user-select:none;z-index:10}
+  body.mode-main #panel{width:700px;max-width:92vw}
+  body.mode-floating #panel{width:auto;max-width:92vw}
 
   #titleRow{display:flex;align-items:center;gap:8px}
   #titleRow h1{margin:0;font-size:13px;color:#58a6ff;letter-spacing:.5px}
@@ -34,17 +36,25 @@
   #panel.collapsed #titleRow h1{display:none}
   #panel.collapsed #body{display:none}
 
-  #body{margin-top:10px}
+  #body{margin-top:8px}
+
+  body.mode-main .main-only{display:grid;grid-template-columns:1.15fr 1fr 1.2fr;gap:14px}
+  body.mode-main .floating-only{display:none}
+
+  body.mode-floating .main-only{display:none}
+  body.mode-floating .floating-only{display:block}
+
+  .col{display:flex;flex-direction:column;gap:4px;min-width:0}
   .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .row > span:first-child{color:#8b949e}
   .row > span:last-child{color:#7ee787;text-align:right}
-  hr{border:0;border-top:1px solid #30363d;margin:10px 0}
-  input[type=range]{width:100%;accent-color:#58a6ff;margin:4px 0 0}
-  .btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  input[type=range]{width:100%;accent-color:#58a6ff;margin:2px 0}
+  .btns{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
   .btns button{flex:1;background:#21262d;color:#c9d1d9;border:1px solid #30363d;
-    border-radius:6px;padding:6px 0;cursor:pointer;font-family:inherit;font-size:12px}
+    border-radius:6px;padding:5px 0;cursor:pointer;font-family:inherit;font-size:12px;
+    min-width:0;white-space:nowrap}
   .btns button:hover{background:#30363d}
   .btns button.on{background:#f0883e;border-color:#f0883e;color:#fff}
-  .hint{margin-top:12px;color:#8b949e;font-size:11px;line-height:1.7}
 
   .r-ctrl{display:flex;align-items:center;gap:4px}
   .r-btn{width:20px;height:20px;padding:0;flex:0 0 auto;
@@ -62,7 +72,6 @@
   .r-val:hover{border-color:#30363d}
   .r-unit{color:#8b949e;font-size:11px}
 
-  /* 数字小键盘 */
   #numPad{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);
     width:250px;background:rgba(22,27,34,.97);
     border:1px solid #30363d;border-radius:12px;
@@ -95,47 +104,68 @@
   </div>
 
   <div id="body">
-    <div class="row">
-      <span>半径 R</span>
-      <span class="r-ctrl">
-        <button class="r-btn" id="bRMinus">−</button>
-        <div class="r-val" id="vR">3765.47</div>
-        <button class="r-btn" id="bRPlus">+</button>
-        <span class="r-unit">px</span>
-      </span>
+
+    <!-- 悬浮窗模式：紧凑面板 -->
+    <div class="floating-only">
+      <div class="row">
+        <span>半径 R</span>
+        <span class="r-ctrl">
+          <button class="r-btn" id="bRMinus">−</button>
+          <span class="r-val" id="vR">3765.47</span>
+          <button class="r-btn" id="bRPlus">+</button>
+          <span class="r-unit">px</span>
+        </span>
+      </div>
+      <div class="btns">
+        <button id="bReset">重置</button>
+        <button id="bRotate">旋转</button>
+        <button id="bLoad">载入</button>
+        <button id="bClear">清除</button>
+      </div>
     </div>
-    <div class="row"><span>直径 D</span><span id="vD">7530.94 px</span></div>
-    <div class="row"><span>曲率 k</span><span id="vK">2.656e-4 px⁻¹</span></div>
-    <hr>
-    <div class="row"><span>弧长 L</span><span id="vL">100 px</span></div>
-    <input type="range" id="sL" min="0" max="1000" value="4">
-    <div class="row"><span>圆心角 θ</span><span id="vT">0.0°</span></div>
-    <div class="row"><span>起始角 α</span><span id="vA">0.0°</span></div>
-    <hr>
-    <div class="row"><span>圆心 (屏幕 px)</span><span id="vC">-</span></div>
-    <div class="btns">
-      <button id="bReset">重置</button>
-      <button id="bRotate">旋转</button>
+
+    <!-- 主界面：3 列完整面板 -->
+    <div class="main-only">
+      <div class="col">
+        <div class="row">
+          <span>半径 R</span>
+          <span class="r-ctrl">
+            <button class="r-btn" id="bRMinusM">−</button>
+            <span class="r-val" id="vRM">3765.47</span>
+            <button class="r-btn" id="bRPlusM">+</button>
+            <span class="r-unit">px</span>
+          </span>
+        </div>
+        <div class="row"><span>直径 D</span><span id="vDM">7530.94 px</span></div>
+        <div class="row"><span>曲率 k</span><span id="vKM">2.656e-4</span></div>
+      </div>
+
+      <div class="col">
+        <div class="row"><span>弧长 L</span><span id="vLM">100 px</span></div>
+        <input type="range" id="sL" min="0" max="1000" value="4">
+        <div class="row"><span>圆心角 θ</span><span id="vTM">0.0°</span></div>
+      </div>
+
+      <div class="col">
+        <div class="row"><span>起始角 α</span><span id="vAM">-90.0°</span></div>
+        <div class="row"><span>圆心</span><span id="vCM">-</span></div>
+        <div class="btns">
+          <button id="bResetM">重置</button>
+          <button id="bRotateM">旋转</button>
+        </div>
+        <div class="btns">
+          <button id="bLoadM">载入</button>
+          <button id="bClearM">清除</button>
+          <button id="bFloating">悬浮窗</button>
+        </div>
+      </div>
     </div>
-    <div class="btns">
-      <button id="bLoad">载入图片</button>
-      <button id="bClear">清除背景</button>
-    </div>
-    <div class="btns">
-      <button id="bFloating">悬浮窗</button>
-    </div>
-    <div class="hint">
-      拖动绿色终点 → 改弧长<br>
-      拖动空白 → 平移圆弧<br>
-      Shift + 拖动 → 旋转圆弧<br>
-      旋转模式：拖终点自由改弧长和角度
-    </div>
+
   </div>
 
   <input type="file" id="file" accept="image/*" hidden>
 </div>
 
-<!-- 数字小键盘 -->
 <div id="numPad">
   <div class="np-display" id="npDisplay">0</div>
   <div class="np-grid">
@@ -167,6 +197,8 @@
   var TAU  = Math.PI * 2;
   var HIT_RADIUS = 40;
   var INITIAL_L = 100;
+  var SBTN_R = 15;      // 悬浮窗起点旋转按钮半径
+  var SBTN_OFFSET = 42; // 距离起点多少 px
 
   var cv  = document.getElementById('c');
   var ctx = cv.getContext('2d');
@@ -215,29 +247,42 @@
   }
 
   function enterRotateMode() {
+    if (rotateMode) return;
     rotateMode = true;
     pivotS = {
       x: cx + R * Math.cos(alpha),
       y: cy + R * Math.sin(alpha)
     };
     cPrev = { x: cx, y: cy };
-    bRotate.textContent = '退出旋转';
-    bRotate.classList.add('on');
+    syncRotateButtons();
   }
 
   function exitRotateMode() {
+    if (!rotateMode) return;
     rotateMode = false;
     pivotS = null;
     cPrev = null;
-    bRotate.textContent = '旋转';
-    bRotate.classList.remove('on');
+    syncRotateButtons();
+  }
+
+  function syncRotateButtons() {
+    var text = rotateMode ? '退出旋转' : '旋转';
+    var btnR = document.getElementById('bRotate');
+    var btnM = document.getElementById('bRotateM');
+    if (btnR) {
+      btnR.textContent = text;
+      btnR.classList.toggle('on', rotateMode);
+    }
+    if (btnM) {
+      btnM.textContent = text;
+      btnM.classList.toggle('on', rotateMode);
+    }
   }
 
   function setR(newR) {
     newR = Math.max(R_MIN, Math.min(R_MAX, newR));
     if (Math.abs(newR - R) < 1e-9) return;
     R = newR;
-
     if (rotateMode && pivotS) {
       cx = pivotS.x - R * Math.cos(alpha);
       cy = pivotS.y - R * Math.sin(alpha);
@@ -246,14 +291,20 @@
     updatePanel();
   }
 
-  // ★ 强制刷新，不再判断焦点
   function updatePanel() {
-    vR.textContent = R.toFixed(2);
-    vD.textContent = (2 * R).toFixed(2) + ' px';
-    vK.textContent = (1 / R).toExponential(3) + ' px⁻¹';
+    var txt = R.toFixed(2);
+    var vR = document.getElementById('vR');
+    var vRM = document.getElementById('vRM');
+    if (vR)  vR.textContent = txt;
+    if (vRM) vRM.textContent = txt;
+
+    var vDM = document.getElementById('vDM');
+    var vKM = document.getElementById('vKM');
+    if (vDM) vDM.textContent = (2 * R).toFixed(2) + ' px';
+    if (vKM) vKM.textContent = (1 / R).toExponential(3);
   }
 
-  // 半径 +/- 长按
+  // 半径 +/− 长按
   var holdTimeout = null;
   var holdInterval = null;
 
@@ -268,23 +319,19 @@
     if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
   }
 
-  var bRPlus  = document.getElementById('bRPlus');
-  var bRMinus = document.getElementById('bRMinus');
-  var vR      = document.getElementById('vR');
-  var vD      = document.getElementById('vD');
-  var vK      = document.getElementById('vK');
+  function bindHold(btn, delta) {
+    btn.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(delta); });
+    btn.addEventListener('pointerup', stopHold);
+    btn.addEventListener('pointerleave', stopHold);
+    btn.addEventListener('pointercancel', stopHold);
+  }
 
-  bRPlus.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(1); });
-  bRPlus.addEventListener('pointerup', stopHold);
-  bRPlus.addEventListener('pointerleave', stopHold);
-  bRPlus.addEventListener('pointercancel', stopHold);
+  bindHold(document.getElementById('bRPlus'),  1);
+  bindHold(document.getElementById('bRMinus'), -1);
+  bindHold(document.getElementById('bRPlusM'),  1);
+  bindHold(document.getElementById('bRMinusM'), -1);
 
-  bRMinus.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(-1); });
-  bRMinus.addEventListener('pointerup', stopHold);
-  bRMinus.addEventListener('pointerleave', stopHold);
-  bRMinus.addEventListener('pointercancel', stopHold);
-
-  // ---------- 数字小键盘 ----------
+  // 数字小键盘
   var numPad = document.getElementById('numPad');
   var npDisplay = document.getElementById('npDisplay');
   var npBuffer = '';
@@ -309,14 +356,12 @@
   }
   function npConfirm() {
     var v = parseFloat(npBuffer);
-    if (!isNaN(v)) {
-      setR(v);
-      updatePanel();
-    }
+    if (!isNaN(v)) { setR(v); updatePanel(); }
     hideNumPad();
   }
 
-  vR.addEventListener('click', showNumPad);
+  document.getElementById('vR').addEventListener('click', showNumPad);
+  document.getElementById('vRM').addEventListener('click', showNumPad);
 
   numPad.addEventListener('click', function (e) {
     var btn = e.target.closest('button');
@@ -329,14 +374,30 @@
     else if (/^\d$/.test(k)) npAppend(k);
   });
 
-  // ---------- 圆弧交互 ----------
+  // 圆弧交互
   var drag = null;
   var last = { x: 0, y: 0 };
   var rawTheta = 0;
   var lastAngle = 0;
 
+  function getStartBtnPos() {
+    var sx = cx + R * Math.cos(alpha);
+    var sy = cy + R * Math.sin(alpha);
+    return { x: sx, y: sy - SBTN_OFFSET };
+  }
+
   cv.addEventListener('pointerdown', function (e) {
     var mx = e.clientX, my = e.clientY;
+
+    // 悬浮窗模式下，先判断起点上方的旋转按钮
+    if (isFloating) {
+      var sb = getStartBtnPos();
+      if (Math.hypot(mx - sb.x, my - sb.y) < SBTN_R + 8) {
+        if (rotateMode) exitRotateMode(); else enterRotateMode();
+        e.preventDefault();
+        return;
+      }
+    }
 
     var a1 = alpha + signedArc;
     var ex = cx + R * Math.cos(a1);
@@ -428,8 +489,7 @@
     var ddy = my - last.y;
 
     if (drag === 'pan') {
-      cx += ddx;
-      cy += ddy;
+      cx += ddx; cy += ddy;
     } else {
       var aNow = Math.atan2(my - cy, mx - cx);
       var aOld = Math.atan2(last.y - cy, last.x - cx);
@@ -445,18 +505,16 @@
   });
   cv.addEventListener('pointercancel', function () { drag = null; });
 
-  var vL = document.getElementById('vL');
-  var vT = document.getElementById('vT');
-  var vA = document.getElementById('vA');
-  var vC = document.getElementById('vC');
+  // UI 绑定
   var sL = document.getElementById('sL');
-  var bReset = document.getElementById('bReset');
-  var bRotate = document.getElementById('bRotate');
-  var bLoad = document.getElementById('bLoad');
-  var bClear = document.getElementById('bClear');
   var file = document.getElementById('file');
   var panel = document.getElementById('panel');
   var bToggle = document.getElementById('bToggle');
+
+  var vLM = document.getElementById('vLM');
+  var vTM = document.getElementById('vTM');
+  var vAM = document.getElementById('vAM');
+  var vCM = document.getElementById('vCM');
 
   bToggle.addEventListener('click', function () {
     var collapsed = panel.classList.toggle('collapsed');
@@ -473,11 +531,16 @@
     }
   };
 
-  bReset.addEventListener('click', reset);
+  function resetAll() { reset(); }
 
-  bRotate.addEventListener('click', function () {
-    if (rotateMode) exitRotateMode();
-    else enterRotateMode();
+  document.getElementById('bReset').addEventListener('click', resetAll);
+  document.getElementById('bResetM').addEventListener('click', resetAll);
+
+  document.getElementById('bRotate').addEventListener('click', function () {
+    if (rotateMode) exitRotateMode(); else enterRotateMode();
+  });
+  document.getElementById('bRotateM').addEventListener('click', function () {
+    if (rotateMode) exitRotateMode(); else enterRotateMode();
   });
 
   sL.addEventListener('input', function () {
@@ -485,7 +548,9 @@
     signedArc = t * TAU;
   });
 
-  bLoad.addEventListener('click', function () { file.click(); });
+  function openFilePicker() { file.click(); }
+  document.getElementById('bLoad').addEventListener('click', openFilePicker);
+  document.getElementById('bLoadM').addEventListener('click', openFilePicker);
 
   file.addEventListener('change', function () {
     var f = file.files && file.files[0];
@@ -503,16 +568,11 @@
     img.src = url;
   });
 
-  bClear.addEventListener('click', function () {
-    bgImage = null;
-    file.value = '';
-  });
+  function clearBg() { bgImage = null; file.value = ''; }
+  document.getElementById('bClear').addEventListener('click', clearBg);
+  document.getElementById('bClearM').addEventListener('click', clearBg);
 
-  var bFloating = document.getElementById('bFloating');
-  if (isFloating) {
-    bFloating.style.display = 'none';
-  }
-  bFloating.addEventListener('click', function () {
+  document.getElementById('bFloating').addEventListener('click', function () {
     if (window.AndroidBridge && window.AndroidBridge.startFloating) {
       window.AndroidBridge.startFloating();
     } else {
@@ -522,26 +582,62 @@
 
   function updateUI() {
     var L = Math.abs(signedArc) * R;
-    vL.textContent = Math.round(L).toLocaleString() + ' px';
+    if (vLM) vLM.textContent = Math.round(L).toLocaleString() + ' px';
     var deg = (L / R) * 180 / Math.PI;
-    vT.textContent = deg.toFixed(2) + '°';
+    if (vTM) vTM.textContent = deg.toFixed(2) + '°';
     var a = (alpha * 180 / Math.PI) % 360;
     if (a < 0) a += 360;
-    vA.textContent = a.toFixed(1) + '°';
-    vC.textContent = Math.round(cx) + ', ' + Math.round(cy);
+    if (vAM) vAM.textContent = a.toFixed(1) + '°';
+    if (vCM) vCM.textContent = Math.round(cx) + ', ' + Math.round(cy);
   }
 
   function drawBackground() {
     if (!bgImage) return;
-    var iw = bgImage.width;
-    var ih = bgImage.height;
+    var iw = bgImage.width, ih = bgImage.height;
     if (!iw || !ih) return;
     var s = Math.min(W / iw, H / ih);
-    var dw = iw * s;
-    var dh = ih * s;
-    var dx = (W - dw) / 2;
-    var dy = (H - dh) / 2;
+    var dw = iw * s, dh = ih * s;
+    var dx = (W - dw) / 2, dy = (H - dh) / 2;
     ctx.drawImage(bgImage, dx, dy, dw, dh);
+  }
+
+  function drawStartButton(sx, sy) {
+    var bx = sx, by = sy - SBTN_OFFSET;
+
+    ctx.beginPath();
+    ctx.arc(bx, by, SBTN_R, 0, TAU);
+    ctx.fillStyle = 'rgba(22,27,34,0.6)';
+    ctx.fill();
+    ctx.strokeStyle = '#f0883e';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.fillStyle = '#ffffff';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+
+    if (rotateMode) {
+      // 叉号
+      ctx.beginPath();
+      ctx.moveTo(bx - 6, by - 6); ctx.lineTo(bx + 6, by + 6);
+      ctx.moveTo(bx + 6, by - 6); ctx.lineTo(bx - 6, by + 6);
+      ctx.stroke();
+    } else {
+      // 旋转图标 ↻
+      ctx.beginPath();
+      ctx.arc(bx, by, 7, -Math.PI * 0.65, Math.PI * 0.55);
+      ctx.stroke();
+      // 箭头小三角
+      ctx.beginPath();
+      var ax = bx + 7 * Math.cos(-Math.PI * 0.65);
+      var ay = by + 7 * Math.sin(-Math.PI * 0.65);
+      ctx.moveTo(ax - 2, ay - 3);
+      ctx.lineTo(ax + 4, ay - 1);
+      ctx.lineTo(ax - 1, ay + 3);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
   function render() {
@@ -591,6 +687,7 @@
 
     var sx = cx + sr * Math.cos(a0);
     var sy = cy + sr * Math.sin(a0);
+
     if (rotateMode) {
       ctx.beginPath();
       ctx.arc(sx, sy, 16, 0, TAU);
@@ -630,6 +727,9 @@
       ctx.fillStyle = '#f0883e';
       ctx.fill();
     }
+
+    // 悬浮窗模式下，起点上方的旋转按钮
+    if (isFloating) drawStartButton(sx, sy);
   }
 
   function tick() {
@@ -640,6 +740,7 @@
 
   resize();
   reset();
+  syncRotateButtons();
   requestAnimationFrame(tick);
 
 })();
