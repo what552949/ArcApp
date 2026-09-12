@@ -11,9 +11,7 @@
     -webkit-user-select:none;user-select:none;touch-action:none}
   canvas{display:block;touch-action:none}
 
-  /* 主界面背景（非悬浮窗） */
   body.mode-main{background:#0d1117}
-  /* 悬浮窗背景：全透明 */
   body.mode-floating{background:transparent}
   html.mode-floating{background:transparent}
 
@@ -56,13 +54,35 @@
     font-family:inherit}
   .r-btn:hover{background:#30363d}
   .r-btn:active{background:#1f6feb}
-  .r-val{width:62px;padding:1px 4px;background:transparent;
+  .r-val{width:66px;padding:1px 4px;background:transparent;
     border:1px solid transparent;border-radius:4px;
     color:#7ee787;font-family:inherit;font-size:12px;
-    text-align:right;outline:none}
+    text-align:right;outline:none;cursor:pointer;
+    display:inline-block}
   .r-val:hover{border-color:#30363d}
-  .r-val:focus{border-color:#58a6ff;background:#0d1117}
   .r-unit{color:#8b949e;font-size:11px}
+
+  /* 数字小键盘 */
+  #numPad{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);
+    width:250px;background:rgba(22,27,34,.97);
+    border:1px solid #30363d;border-radius:12px;
+    padding:10px;z-index:100;
+    box-shadow:0 8px 30px rgba(0,0,0,.7);
+    display:none}
+  #numPad.show{display:block}
+  .np-display{background:#0d1117;border:1px solid #30363d;border-radius:6px;
+    padding:8px 10px;text-align:right;font-size:18px;color:#7ee787;
+    margin-bottom:8px;min-height:36px;overflow:hidden;
+    font-family:ui-monospace,Menlo,Consolas,monospace}
+  .np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .np-grid button{
+    background:#21262d;border:1px solid #30363d;border-radius:6px;
+    color:#c9d1d9;font-size:16px;padding:10px 0;cursor:pointer;
+    font-family:inherit}
+  .np-grid button:hover{background:#30363d}
+  .np-grid button:active{background:#1f6feb}
+  .np-grid button.ok{background:#1f6feb;border-color:#1f6feb;color:#fff;grid-column:2 / span 2}
+  .np-grid button.cancel{background:#21262d;color:#8b949e}
 </style>
 </head>
 <body>
@@ -79,7 +99,7 @@
       <span>半径 R</span>
       <span class="r-ctrl">
         <button class="r-btn" id="bRMinus">−</button>
-        <input class="r-val" id="vR" value="3765.47" inputmode="decimal">
+        <div class="r-val" id="vR">3765.47</div>
         <button class="r-btn" id="bRPlus">+</button>
         <span class="r-unit">px</span>
       </span>
@@ -115,6 +135,27 @@
   <input type="file" id="file" accept="image/*" hidden>
 </div>
 
+<!-- 数字小键盘 -->
+<div id="numPad">
+  <div class="np-display" id="npDisplay">0</div>
+  <div class="np-grid">
+    <button data-k="1">1</button>
+    <button data-k="2">2</button>
+    <button data-k="3">3</button>
+    <button data-k="4">4</button>
+    <button data-k="5">5</button>
+    <button data-k="6">6</button>
+    <button data-k="7">7</button>
+    <button data-k="8">8</button>
+    <button data-k="9">9</button>
+    <button data-k=".">.</button>
+    <button data-k="0">0</button>
+    <button data-k="back">⌫</button>
+    <button data-k="cancel" class="cancel">取消</button>
+    <button data-k="ok" class="ok">确定</button>
+  </div>
+</div>
+
 <script>
 (function () {
   'use strict';
@@ -142,7 +183,6 @@
 
   var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
 
-  // ★ 主界面 / 悬浮窗 背景类
   if (isFloating) {
     document.body.classList.add('mode-floating');
     document.documentElement.classList.add('mode-floating');
@@ -206,12 +246,14 @@
     updatePanel();
   }
 
+  // ★ 强制刷新，不再判断焦点
   function updatePanel() {
-    if (document.activeElement !== vR) vR.value = R.toFixed(2);
+    vR.textContent = R.toFixed(2);
     vD.textContent = (2 * R).toFixed(2) + ' px';
     vK.textContent = (1 / R).toExponential(3) + ' px⁻¹';
   }
 
+  // 半径 +/- 长按
   var holdTimeout = null;
   var holdInterval = null;
 
@@ -242,18 +284,52 @@
   bRMinus.addEventListener('pointerleave', stopHold);
   bRMinus.addEventListener('pointercancel', stopHold);
 
-  vR.addEventListener('focus', function () { vR.select(); });
-  vR.addEventListener('blur', function () {
-    var val = parseFloat(vR.value);
-    if (isNaN(val)) { updatePanel(); return; }
-    setR(val);
-    updatePanel();
-  });
-  vR.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter')  { e.preventDefault(); vR.blur(); }
-    if (e.key === 'Escape') { updatePanel(); vR.blur(); }
+  // ---------- 数字小键盘 ----------
+  var numPad = document.getElementById('numPad');
+  var npDisplay = document.getElementById('npDisplay');
+  var npBuffer = '';
+
+  function showNumPad() {
+    npBuffer = R.toFixed(2);
+    npDisplay.textContent = npBuffer;
+    numPad.classList.add('show');
+  }
+  function hideNumPad() {
+    numPad.classList.remove('show');
+  }
+  function npAppend(ch) {
+    if (ch === '.' && npBuffer.indexOf('.') >= 0) return;
+    if (npBuffer.replace('.', '').length >= 9) return;
+    npBuffer += ch;
+    npDisplay.textContent = npBuffer;
+  }
+  function npBackspace() {
+    npBuffer = npBuffer.slice(0, -1);
+    npDisplay.textContent = npBuffer || '0';
+  }
+  function npConfirm() {
+    var v = parseFloat(npBuffer);
+    if (!isNaN(v)) {
+      setR(v);
+      updatePanel();
+    }
+    hideNumPad();
+  }
+
+  vR.addEventListener('click', showNumPad);
+
+  numPad.addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    var k = btn.dataset.k;
+    if (k === 'back') npBackspace();
+    else if (k === 'cancel') hideNumPad();
+    else if (k === 'ok') npConfirm();
+    else if (k === '.') npAppend('.');
+    else if (/^\d$/.test(k)) npAppend(k);
   });
 
+  // ---------- 圆弧交互 ----------
   var drag = null;
   var last = { x: 0, y: 0 };
   var rawTheta = 0;
@@ -387,7 +463,6 @@
     bToggle.textContent = collapsed ? '▼' : '■';
   });
 
-  // ★ 供 Android 原生代码调用的折叠/展开函数
   window.__setPanelCollapsed = function (collapsed) {
     if (collapsed) {
       panel.classList.add('collapsed');
