@@ -108,7 +108,7 @@
       <span>K</span>
       <span class="kCtrl">
         <button class="k-btn" id="bKMinus">−</button>
-        <span class="k-val" id="vK">0.00028</span>
+        <span class="k-val" id="vK">0.00025</span>
         <button class="k-btn" id="bKPlus">+</button>
       </span>
     </div>
@@ -159,20 +159,22 @@
   'use strict';
 
   var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
-  var STORAGE_PREFIX = isFloating ? 'arcapp_floating_' : 'arcapp_main_';
+
+  // 一套系统：主界面和悬浮窗共用同一份数据
+  var STORAGE_PREFIX = 'arcapp_';
 
   var CANVAS_W = 2000;
   var CANVAS_H = 1200;
 
   var K_UNIT = 100000;
-  var K_DEFAULT = 28;   // 0.00028
+  var K_DEFAULT = 25;   // 0.00025
   var K_MIN = 1;        // 0.00001
 
   var OFFSET_DEFAULT = 40;
   var OFFSET_MIN = 0;
   var OFFSET_MAX = 300;
 
-  var SEARCH_RADIUS = 50;
+  var SEARCH_RADIUS = 100;
   var WHITE_THRESHOLD = 200;
 
   var kInt = K_DEFAULT;
@@ -298,7 +300,6 @@
     return { a: a, b: b, c: c };
   }
 
-  // 画背景图（仅主界面，等比缩放居中铺在画布区域）
   function drawBackgroundImage() {
     if (isFloating) return;
     if (!bgImage) return;
@@ -324,7 +325,6 @@
   function render() {
     ctx.clearRect(0, 0, W, H);
 
-    // 背景图（仅主界面）
     drawBackgroundImage();
 
     var K = getK();
@@ -597,8 +597,17 @@
     saveStored();
   }
 
+  // 载入图片按钮：主界面走文件选择，悬浮窗走原生桥
   document.getElementById('bLoad').addEventListener('click', function () {
-    fileInput.click();
+    if (isFloating) {
+      if (window.AndroidBridge && window.AndroidBridge.requestLoadImage) {
+        window.AndroidBridge.requestLoadImage();
+      } else {
+        alert('请在安卓 App 内使用此功能');
+      }
+    } else {
+      fileInput.click();
+    }
   });
 
   fileInput.addEventListener('change', function () {
@@ -611,7 +620,6 @@
       var w0 = img.naturalWidth || img.width;
       var h0 = img.naturalHeight || img.height;
 
-      // 主界面：把图片设为背景显示（悬浮窗不显示）
       if (!isFloating) {
         bgImage = img;
       }
@@ -664,6 +672,15 @@
       }
     });
   }
+
+  // 从后台切回前台时，重新读取共享数据（防止另一界面改过）
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+      loadStored();
+      updateKDisplay();
+      updateOffsetDisplay();
+    }
+  });
 
   loadStored();
   resize();
