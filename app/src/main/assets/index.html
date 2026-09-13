@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>圆弧</title>
+<title>抛物线</title>
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;
@@ -20,8 +20,8 @@
     padding:10px 14px;font-size:12px;line-height:1.7;
     box-shadow:0 8px 24px rgba(0,0,0,.45);
     user-select:none;z-index:10}
-  body.mode-main #panel{width:700px;max-width:92vw}
-  body.mode-floating #panel{width:auto;max-width:92vw}
+  body.mode-main #panel{width:320px;max-width:92vw}
+  body.mode-floating #panel{width:300px;max-width:92vw}
 
   #titleRow{display:flex;align-items:center;gap:8px}
   #titleRow h1{margin:0;font-size:13px;color:#58a6ff;letter-spacing:.5px}
@@ -38,39 +38,22 @@
 
   #body{margin-top:8px}
 
-  body.mode-main .main-only{display:grid;grid-template-columns:1.15fr 1fr 1.2fr;gap:14px}
-  body.mode-main .floating-only{display:none}
+  .row{display:flex;justify-content:space-between;gap:8px;align-items:center;
+    margin-bottom:4px}
+  .row > span:first-child{color:#8b949e;flex:0 0 auto}
+  .inp{flex:1 1 auto;min-width:0;
+    background:#0d1117;border:1px solid #30363d;border-radius:5px;
+    padding:3px 8px;color:#7ee787;font-family:inherit;font-size:12px;
+    text-align:right;outline:none;cursor:pointer}
+  .inp:hover{border-color:#58a6ff}
 
-  body.mode-floating .main-only{display:none}
-  body.mode-floating .floating-only{display:block}
-
-  .col{display:flex;flex-direction:column;gap:4px;min-width:0}
-  .row{display:flex;justify-content:space-between;gap:8px;align-items:center}
-  .row > span:first-child{color:#8b949e}
-  .row > span:last-child{color:#7ee787;text-align:right}
-  input[type=range]{width:100%;accent-color:#58a6ff;margin:2px 0}
-  .btns{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .btns button{flex:1;background:#21262d;color:#c9d1d9;border:1px solid #30363d;
-    border-radius:6px;padding:5px 0;cursor:pointer;font-family:inherit;font-size:12px;
+    border-radius:6px;padding:6px 0;cursor:pointer;font-family:inherit;font-size:12px;
     min-width:0;white-space:nowrap}
   .btns button:hover{background:#30363d}
-  .btns button.on{background:#f0883e;border-color:#f0883e;color:#fff}
-
-  .r-ctrl{display:flex;align-items:center;gap:4px}
-  .r-btn{width:20px;height:20px;padding:0;flex:0 0 auto;
-    background:#21262d;border:1px solid #30363d;border-radius:4px;
-    color:#c9d1d9;font-size:12px;line-height:1;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;
-    font-family:inherit}
-  .r-btn:hover{background:#30363d}
-  .r-btn:active{background:#1f6feb}
-  .r-val{width:66px;padding:1px 4px;background:transparent;
-    border:1px solid transparent;border-radius:4px;
-    color:#7ee787;font-family:inherit;font-size:12px;
-    text-align:right;outline:none;cursor:pointer;
-    display:inline-block}
-  .r-val:hover{border-color:#30363d}
-  .r-unit{color:#8b949e;font-size:11px}
+  .btns button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
+  .btns button.primary:hover{background:#388bfd}
 
   #numPad{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);
     width:250px;background:rgba(22,27,34,.97);
@@ -80,8 +63,8 @@
     display:none}
   #numPad.show{display:block}
   .np-display{background:#0d1117;border:1px solid #30363d;border-radius:6px;
-    padding:8px 10px;text-align:right;font-size:18px;color:#7ee787;
-    margin-bottom:8px;min-height:36px;overflow:hidden;
+    padding:8px 10px;text-align:right;font-size:16px;color:#7ee787;
+    margin-bottom:8px;min-height:34px;overflow:hidden;white-space:nowrap;
     font-family:ui-monospace,Menlo,Consolas,monospace}
   .np-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
   .np-grid button{
@@ -100,70 +83,20 @@
 <div id="panel">
   <div id="titleRow">
     <button id="bToggle" title="折叠 / 展开">■</button>
-    <h1>圆弧 · 1:1 真实像素</h1>
+    <h1>抛物线参数</h1>
   </div>
-
   <div id="body">
-
-    <!-- 悬浮窗模式：紧凑面板 -->
-    <div class="floating-only">
-      <div class="row">
-        <span>半径 R</span>
-        <span class="r-ctrl">
-          <button class="r-btn" id="bRMinus">−</button>
-          <span class="r-val" id="vR">3765.47</span>
-          <button class="r-btn" id="bRPlus">+</button>
-          <span class="r-unit">px</span>
-        </span>
-      </div>
-      <div class="btns">
-        <button id="bReset">重置</button>
-        <button id="bRotate">旋转</button>
-        <button id="bLoad">载入</button>
-        <button id="bClear">清除</button>
-      </div>
+    <div class="row"><span>画布宽</span><input class="inp" id="inpW" readonly></div>
+    <div class="row"><span>画布高</span><input class="inp" id="inpH" readonly></div>
+    <div class="row"><span>系数 a</span><input class="inp" id="inpA" readonly></div>
+    <div class="btns">
+      <button id="bApply" class="primary">应用</button>
+      <button id="bReset">恢复默认</button>
     </div>
-
-    <!-- 主界面：3 列完整面板 -->
-    <div class="main-only">
-      <div class="col">
-        <div class="row">
-          <span>半径 R</span>
-          <span class="r-ctrl">
-            <button class="r-btn" id="bRMinusM">−</button>
-            <span class="r-val" id="vRM">3765.47</span>
-            <button class="r-btn" id="bRPlusM">+</button>
-            <span class="r-unit">px</span>
-          </span>
-        </div>
-        <div class="row"><span>直径 D</span><span id="vDM">7530.94 px</span></div>
-        <div class="row"><span>曲率 k</span><span id="vKM">2.656e-4</span></div>
-      </div>
-
-      <div class="col">
-        <div class="row"><span>弧长 L</span><span id="vLM">100 px</span></div>
-        <input type="range" id="sL" min="0" max="1000" value="4">
-        <div class="row"><span>圆心角 θ</span><span id="vTM">0.0°</span></div>
-      </div>
-
-      <div class="col">
-        <div class="row"><span>起始角 α</span><span id="vAM">-90.0°</span></div>
-        <div class="row"><span>圆心</span><span id="vCM">-</span></div>
-        <div class="btns">
-          <button id="bResetM">重置</button>
-          <button id="bRotateM">旋转</button>
-        </div>
-        <div class="btns">
-          <button id="bLoadM">载入</button>
-          <button id="bClearM">清除</button>
-          <button id="bFloating">悬浮窗</button>
-        </div>
-      </div>
+    <div class="btns main-only">
+      <button id="bFloating">启动悬浮窗</button>
     </div>
-
   </div>
-
-  <input type="file" id="file" accept="image/*" hidden>
 </div>
 
 <div id="numPad">
@@ -190,31 +123,41 @@
 (function () {
   'use strict';
 
-  var R = 3765.47;
-  var R_MIN = 1000;
-  var R_MAX = 4000;
-  var R_INITIAL = 3765.47;
-  var TAU  = Math.PI * 2;
-  var HIT_RADIUS = 40;
-  var INITIAL_L = 100;
-  var SBTN_R = 15;      // 悬浮窗起点旋转按钮半径
-  var SBTN_OFFSET = 42; // 距离起点多少 px
+  var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
+  var STORAGE_PREFIX = isFloating ? 'arcapp_floating_' : 'arcapp_main_';
 
-  var cv  = document.getElementById('c');
+  var DEFAULT_W = 2000;
+  var DEFAULT_H = 1200;
+  var DEFAULT_A = 0.0002229078;
+
+  // 当前已应用的值（用于绘制）
+  var canvasW = DEFAULT_W;
+  var canvasH = DEFAULT_H;
+  var a = DEFAULT_A;
+
+  // 起终点（逻辑画布坐标）
+  var startX = 600, startY = 500;
+  var endX = 1400, endY = 700;
+
+  // 屏幕
+  var cv = document.getElementById('c');
   var ctx = cv.getContext('2d');
   var W = 0, H = 0, DPR = 1;
+  var scale = 1, offsetX = 0, offsetY = 0;
 
-  var cx = 0, cy = 0;
-  var alpha = -Math.PI / 2;
-  var signedArc = INITIAL_L / R_INITIAL;
-  var bgImage = null;
+  // UI 元素
+  var panel = document.getElementById('panel');
+  var bToggle = document.getElementById('bToggle');
+  var inpW = document.getElementById('inpW');
+  var inpH = document.getElementById('inpH');
+  var inpA = document.getElementById('inpA');
+  var numPad = document.getElementById('numPad');
+  var npDisplay = document.getElementById('npDisplay');
 
-  var rotateMode = false;
-  var pivotS = null;
-  var cPrev = null;
+  // 锁定状态（由原生调用 __setPanelCollapsed 控制）
+  var locked = false;
 
-  var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
-
+  // 模式 class
   if (isFloating) {
     document.body.classList.add('mode-floating');
     document.documentElement.classList.add('mode-floating');
@@ -222,131 +165,220 @@
     document.body.classList.add('mode-main');
   }
 
+  // ============ 本地存储（主界面 / 悬浮窗各一套 key） ============
+  function loadStored() {
+    try {
+      var w = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'canvasW'));
+      var h = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'canvasH'));
+      var av = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'a'));
+      if (!isNaN(w) && w > 0) canvasW = w;
+      if (!isNaN(h) && h > 0) canvasH = h;
+      if (!isNaN(av)) a = av;
+
+      var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
+      var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
+      var ex = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endX'));
+      var ey = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endY'));
+      if (!isNaN(sx)) startX = sx;
+      if (!isNaN(sy)) startY = sy;
+      if (!isNaN(ex)) endX = ex;
+      if (!isNaN(ey)) endY = ey;
+    } catch (e) {}
+  }
+
+  function saveStored() {
+    try {
+      localStorage.setItem(STORAGE_PREFIX + 'canvasW', String(canvasW));
+      localStorage.setItem(STORAGE_PREFIX + 'canvasH', String(canvasH));
+      localStorage.setItem(STORAGE_PREFIX + 'a', String(a));
+      localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
+      localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
+      localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
+      localStorage.setItem(STORAGE_PREFIX + 'endY', String(endY));
+    } catch (e) {}
+  }
+
+  // ============ 坐标映射 ============
+  function recalcMapping() {
+    scale = Math.min(W / canvasW, H / canvasH);
+    var drawW = canvasW * scale;
+    var drawH = canvasH * scale;
+    offsetX = (W - drawW) / 2;
+    offsetY = (H - drawH) / 2;
+  }
+
+  function toScreenX(lx) { return offsetX + lx * scale; }
+  function toScreenY(ly) { return offsetY + ly * scale; }
+  function toLogicX(sx)  { return (sx - offsetX) / scale; }
+  function toLogicY(sy)  { return (sy - offsetY) / scale; }
+
+  // ============ 抛物线 y = a*x^2 + b*x + c 求 b、c ============
+  function computeBC() {
+    var dx = endX - startX;
+    if (Math.abs(dx) < 1e-9) return null;
+    var b = (endY - startY - a * (endX * endX - startX * startX)) / dx;
+    var c = startY - a * startX * startX - b * startX;
+    return { b: b, c: c };
+  }
+
+  // ============ 绘制 ============
+  function render() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 抛物线（只画起终点之间那一段）
+    var abc = computeBC();
+    if (abc) {
+      var xs = Math.min(startX, endX);
+      var xe = Math.max(startX, endX);
+      var N = Math.max(48, Math.min(1200, Math.ceil(Math.abs(xe - xs))));
+      ctx.beginPath();
+      for (var i = 0; i <= N; i++) {
+        var lx = xs + (xe - xs) * (i / N);
+        var ly = a * lx * lx + abc.b * lx + abc.c;
+        var sx = toScreenX(lx);
+        var sy = toScreenY(ly);
+        if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy);
+      }
+      ctx.save();
+      ctx.shadowColor = 'rgba(126,231,135,0.9)';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#7ee787';
+      ctx.lineWidth = 3;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 十字参考线（锁定时隐藏）
+    if (!locked) {
+      drawCrosshair(startX, startY, '#FF0000');
+      drawCrosshair(endX, endY, '#0000FF');
+    }
+
+    // 起终点小圆点
+    drawDot(startX, startY, '#FF0000');
+    drawDot(endX, endY, '#0000FF');
+  }
+
+  function drawCrosshair(lx, ly, color) {
+    var sx = toScreenX(lx);
+    var sy = toScreenY(ly);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sx, 0); ctx.lineTo(sx, H);
+    ctx.moveTo(0, sy); ctx.lineTo(W, sy);
+    ctx.stroke();
+  }
+
+  function drawDot(lx, ly, color) {
+    var sx = toScreenX(lx);
+    var sy = toScreenY(ly);
+    ctx.beginPath();
+    ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // ============ 尺寸 ============
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
     W = window.innerWidth;
     H = window.innerHeight;
-    cv.width  = Math.round(W * DPR);
+    cv.width = Math.round(W * DPR);
     cv.height = Math.round(H * DPR);
-    cv.style.width  = W + 'px';
+    cv.style.width = W + 'px';
     cv.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    if (cx === 0 && cy === 0) reset();
+    recalcMapping();
   }
+
   window.addEventListener('resize', resize);
 
-  function reset() {
-    R = R_INITIAL;
-    cx = W / 2;
-    cy = H / 2 + R;
-    alpha = -Math.PI / 2;
-    signedArc = INITIAL_L / R;
-    if (rotateMode) exitRotateMode();
-    sL.value = Math.round(INITIAL_L / (TAU * R) * 1000);
-    updatePanel();
-  }
+  // ============ 拖动十字线（触摸区放大到 30px） ============
+  var drag = null;
+  var TOUCH_THRESHOLD = 30;
 
-  function enterRotateMode() {
-    if (rotateMode) return;
-    rotateMode = true;
-    pivotS = {
-      x: cx + R * Math.cos(alpha),
-      y: cy + R * Math.sin(alpha)
-    };
-    cPrev = { x: cx, y: cy };
-    syncRotateButtons();
-  }
+  cv.addEventListener('pointerdown', function (e) {
+    var mx = e.clientX, my = e.clientY;
 
-  function exitRotateMode() {
-    if (!rotateMode) return;
-    rotateMode = false;
-    pivotS = null;
-    cPrev = null;
-    syncRotateButtons();
-  }
+    var targets = [
+      { type: 'sx', dist: Math.abs(mx - toScreenX(startX)) },
+      { type: 'sy', dist: Math.abs(my - toScreenY(startY)) },
+      { type: 'ex', dist: Math.abs(mx - toScreenX(endX)) },
+      { type: 'ey', dist: Math.abs(my - toScreenY(endY)) }
+    ];
+    targets.sort(function (p, q) { return p.dist - q.dist; });
 
-  function syncRotateButtons() {
-    var text = rotateMode ? '退出旋转' : '旋转';
-    var btnR = document.getElementById('bRotate');
-    var btnM = document.getElementById('bRotateM');
-    if (btnR) {
-      btnR.textContent = text;
-      btnR.classList.toggle('on', rotateMode);
+    var t = targets[0];
+    if (t.dist <= TOUCH_THRESHOLD) {
+      drag = t.type;
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault();
     }
-    if (btnM) {
-      btnM.textContent = text;
-      btnM.classList.toggle('on', rotateMode);
+  });
+
+  cv.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var mx = e.clientX, my = e.clientY;
+    if (drag === 'sx') startX = toLogicX(mx);
+    else if (drag === 'sy') startY = toLogicY(my);
+    else if (drag === 'ex') endX = toLogicX(mx);
+    else if (drag === 'ey') endY = toLogicY(my);
+    saveStored();
+  });
+
+  cv.addEventListener('pointerup', function (e) {
+    drag = null;
+    try { cv.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
+  cv.addEventListener('pointercancel', function () { drag = null; });
+
+  // ============ 面板折叠 ============
+  bToggle.addEventListener('click', function () {
+    var collapsed = panel.classList.toggle('collapsed');
+    bToggle.textContent = collapsed ? '▼' : '■';
+  });
+
+  // 原生锁定时调用：锁定 = 折叠面板 + 隐藏十字线
+  window.__setPanelCollapsed = function (c) {
+    locked = !!c;
+    if (c) {
+      panel.classList.add('collapsed');
+      bToggle.textContent = '▼';
+    } else {
+      panel.classList.remove('collapsed');
+      bToggle.textContent = '■';
     }
-  }
+  };
 
-  function setR(newR) {
-    newR = Math.max(R_MIN, Math.min(R_MAX, newR));
-    if (Math.abs(newR - R) < 1e-9) return;
-    R = newR;
-    if (rotateMode && pivotS) {
-      cx = pivotS.x - R * Math.cos(alpha);
-      cy = pivotS.y - R * Math.sin(alpha);
-      cPrev = { x: cx, y: cy };
-    }
-    updatePanel();
-  }
-
-  function updatePanel() {
-    var txt = R.toFixed(2);
-    var vR = document.getElementById('vR');
-    var vRM = document.getElementById('vRM');
-    if (vR)  vR.textContent = txt;
-    if (vRM) vRM.textContent = txt;
-
-    var vDM = document.getElementById('vDM');
-    var vKM = document.getElementById('vKM');
-    if (vDM) vDM.textContent = (2 * R).toFixed(2) + ' px';
-    if (vKM) vKM.textContent = (1 / R).toExponential(3);
-  }
-
-  // 半径 +/− 长按
-  var holdTimeout = null;
-  var holdInterval = null;
-
-  function startHold(delta) {
-    setR(R + delta);
-    holdTimeout = setTimeout(function () {
-      holdInterval = setInterval(function () { setR(R + delta); }, 100);
-    }, 400);
-  }
-  function stopHold() {
-    if (holdTimeout) { clearTimeout(holdTimeout); holdTimeout = null; }
-    if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
-  }
-
-  function bindHold(btn, delta) {
-    btn.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(delta); });
-    btn.addEventListener('pointerup', stopHold);
-    btn.addEventListener('pointerleave', stopHold);
-    btn.addEventListener('pointercancel', stopHold);
-  }
-
-  bindHold(document.getElementById('bRPlus'),  1);
-  bindHold(document.getElementById('bRMinus'), -1);
-  bindHold(document.getElementById('bRPlusM'),  1);
-  bindHold(document.getElementById('bRMinusM'), -1);
-
-  // 数字小键盘
-  var numPad = document.getElementById('numPad');
-  var npDisplay = document.getElementById('npDisplay');
+  // ============ 输入框 + 九宫格 ============
+  var activeInput = null;
   var npBuffer = '';
 
-  function showNumPad() {
-    npBuffer = R.toFixed(2);
-    npDisplay.textContent = npBuffer;
+  function updateInputs() {
+    inpW.value = String(canvasW);
+    inpH.value = String(canvasH);
+    inpA.value = String(a);
+  }
+
+  function showNumPad(input) {
+    activeInput = input;
+    npBuffer = input.value || '';
+    npDisplay.textContent = npBuffer || '0';
     numPad.classList.add('show');
   }
   function hideNumPad() {
     numPad.classList.remove('show');
+    activeInput = null;
   }
   function npAppend(ch) {
     if (ch === '.' && npBuffer.indexOf('.') >= 0) return;
-    if (npBuffer.replace('.', '').length >= 9) return;
+    if (npBuffer.length >= 20) return;
     npBuffer += ch;
     npDisplay.textContent = npBuffer;
   }
@@ -355,13 +387,15 @@
     npDisplay.textContent = npBuffer || '0';
   }
   function npConfirm() {
-    var v = parseFloat(npBuffer);
-    if (!isNaN(v)) { setR(v); updatePanel(); }
+    if (activeInput) {
+      activeInput.value = npBuffer;
+    }
     hideNumPad();
   }
 
-  document.getElementById('vR').addEventListener('click', showNumPad);
-  document.getElementById('vRM').addEventListener('click', showNumPad);
+  inpW.addEventListener('click', function () { showNumPad(inpW); });
+  inpH.addEventListener('click', function () { showNumPad(inpH); });
+  inpA.addEventListener('click', function () { showNumPad(inpA); });
 
   numPad.addEventListener('click', function (e) {
     var btn = e.target.closest('button');
@@ -374,373 +408,76 @@
     else if (/^\d$/.test(k)) npAppend(k);
   });
 
-  // 圆弧交互
-  var drag = null;
-  var last = { x: 0, y: 0 };
-  var rawTheta = 0;
-  var lastAngle = 0;
+  // ============ 应用按钮 ============
+  document.getElementById('bApply').addEventListener('click', function () {
+    var w  = parseFloat(inpW.value);
+    var h  = parseFloat(inpH.value);
+    var av = parseFloat(inpA.value);
+    if (isNaN(w) || w <= 0) { alert('画布宽无效'); return; }
+    if (isNaN(h) || h <= 0) { alert('画布高无效'); return; }
+    if (isNaN(av)) { alert('系数 a 无效'); return; }
 
-  function getStartBtnPos() {
-    var sx = cx + R * Math.cos(alpha);
-    var sy = cy + R * Math.sin(alpha);
-    return { x: sx, y: sy - SBTN_OFFSET };
-  }
+    // 保持屏幕视觉位置不变，重新计算起终点逻辑坐标
+    var sSx = toScreenX(startX);
+    var sSy = toScreenY(startY);
+    var eSx = toScreenX(endX);
+    var eSy = toScreenY(endY);
 
-  cv.addEventListener('pointerdown', function (e) {
-    var mx = e.clientX, my = e.clientY;
+    canvasW = w;
+    canvasH = h;
+    a = av;
+    recalcMapping();
 
-    // 悬浮窗模式下，先判断起点上方的旋转按钮
-    if (isFloating) {
-      var sb = getStartBtnPos();
-      if (Math.hypot(mx - sb.x, my - sb.y) < SBTN_R + 8) {
-        if (rotateMode) exitRotateMode(); else enterRotateMode();
-        e.preventDefault();
-        return;
-      }
-    }
+    startX = toLogicX(sSx);
+    startY = toLogicY(sSy);
+    endX   = toLogicX(eSx);
+    endY   = toLogicY(eSy);
 
-    var a1 = alpha + signedArc;
-    var ex = cx + R * Math.cos(a1);
-    var ey = cy + R * Math.sin(a1);
-    var dEnd = Math.hypot(mx - ex, my - ey);
+    saveStored();
+  });
 
-    if (dEnd < HIT_RADIUS) {
-      if (rotateMode) {
-        drag = 'end-rotate';
+  // ============ 恢复默认 ============
+  document.getElementById('bReset').addEventListener('click', function () {
+    var sSx = toScreenX(startX);
+    var sSy = toScreenY(startY);
+    var eSx = toScreenX(endX);
+    var eSy = toScreenY(endY);
+
+    canvasW = DEFAULT_W;
+    canvasH = DEFAULT_H;
+    a = DEFAULT_A;
+    recalcMapping();
+
+    startX = toLogicX(sSx);
+    startY = toLogicY(sSy);
+    endX   = toLogicX(eSx);
+    endY   = toLogicY(eSy);
+
+    updateInputs();
+    saveStored();
+  });
+
+  // ============ 启动悬浮窗按钮（仅主界面） ============
+  var bFloating = document.getElementById('bFloating');
+  if (bFloating) {
+    bFloating.addEventListener('click', function () {
+      if (window.AndroidBridge && window.AndroidBridge.startFloating) {
+        window.AndroidBridge.startFloating();
       } else {
-        drag = 'end';
-        lastAngle = Math.atan2(my - cy, mx - cx);
-        rawTheta = Math.abs(signedArc);
+        alert('请在安卓 App 内使用悬浮窗功能');
       }
-    } else if (rotateMode) {
-      drag = null;
-    } else {
-      drag = e.shiftKey ? 'rotate' : 'pan';
-      last.x = mx;
-      last.y = my;
-    }
-    cv.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  });
-
-  cv.addEventListener('pointermove', function (e) {
-    if (!drag) return;
-    var mx = e.clientX, my = e.clientY;
-
-    if (drag === 'end') {
-      var curAngle = Math.atan2(my - cy, mx - cx);
-      var delta = curAngle - lastAngle;
-      while (delta >  Math.PI) delta -= TAU;
-      while (delta < -Math.PI) delta += TAU;
-      rawTheta += delta;
-      lastAngle = curAngle;
-      var t = Math.max(0, Math.min(TAU, rawTheta));
-      signedArc = t;
-      sL.value = Math.round(t / TAU * 1000);
-      return;
-    }
-
-    if (drag === 'end-rotate') {
-      var S = pivotS;
-      var fx = mx, fy = my;
-      var dx = fx - S.x, dy = fy - S.y;
-      var d = Math.hypot(dx, dy);
-      if (d < 0.5) return;
-
-      var D = 2 * R;
-      if (d > D) {
-        var kk = D / d;
-        fx = S.x + dx * kk;
-        fy = S.y + dy * kk;
-        d = D;
-      }
-
-      var mx2 = (S.x + fx) / 2;
-      var my2 = (S.y + fy) / 2;
-      var ux = (fx - S.x) / d;
-      var uy = (fy - S.y) / d;
-      var nx = -uy, ny = ux;
-      var h = Math.sqrt(Math.max(0, R * R - (d * d) / 4));
-
-      var c1x = mx2 + nx * h, c1y = my2 + ny * h;
-      var c2x = mx2 - nx * h, c2y = my2 - ny * h;
-      var dist1 = Math.hypot(c1x - cPrev.x, c1y - cPrev.y);
-      var dist2 = Math.hypot(c2x - cPrev.x, c2y - cPrev.y);
-
-      var ncx, ncy;
-      if (dist1 < dist2) { ncx = c1x; ncy = c1y; }
-      else               { ncx = c2x; ncy = c2y; }
-
-      cx = ncx; cy = ncy;
-      alpha = Math.atan2(S.y - cy, S.x - cx);
-
-      var beta = Math.atan2(fy - cy, fx - cx);
-      var dlt = beta - alpha;
-      while (dlt >  Math.PI) dlt -= TAU;
-      while (dlt < -Math.PI) dlt += TAU;
-      signedArc = dlt;
-
-      cPrev = { x: cx, y: cy };
-      sL.value = Math.round(Math.abs(dlt) / TAU * 1000);
-      return;
-    }
-
-    var ddx = mx - last.x;
-    var ddy = my - last.y;
-
-    if (drag === 'pan') {
-      cx += ddx; cy += ddy;
-    } else {
-      var aNow = Math.atan2(my - cy, mx - cx);
-      var aOld = Math.atan2(last.y - cy, last.x - cx);
-      alpha += aNow - aOld;
-    }
-    last.x = mx;
-    last.y = my;
-  });
-
-  cv.addEventListener('pointerup', function (e) {
-    drag = null;
-    try { cv.releasePointerCapture(e.pointerId); } catch (_) {}
-  });
-  cv.addEventListener('pointercancel', function () { drag = null; });
-
-  // UI 绑定
-  var sL = document.getElementById('sL');
-  var file = document.getElementById('file');
-  var panel = document.getElementById('panel');
-  var bToggle = document.getElementById('bToggle');
-
-  var vLM = document.getElementById('vLM');
-  var vTM = document.getElementById('vTM');
-  var vAM = document.getElementById('vAM');
-  var vCM = document.getElementById('vCM');
-
-  bToggle.addEventListener('click', function () {
-    var collapsed = panel.classList.toggle('collapsed');
-    bToggle.textContent = collapsed ? '▼' : '■';
-  });
-
-  window.__setPanelCollapsed = function (collapsed) {
-    if (collapsed) {
-      panel.classList.add('collapsed');
-      bToggle.textContent = '▼';
-    } else {
-      panel.classList.remove('collapsed');
-      bToggle.textContent = '■';
-    }
-  };
-
-  function resetAll() { reset(); }
-
-  document.getElementById('bReset').addEventListener('click', resetAll);
-  document.getElementById('bResetM').addEventListener('click', resetAll);
-
-  document.getElementById('bRotate').addEventListener('click', function () {
-    if (rotateMode) exitRotateMode(); else enterRotateMode();
-  });
-  document.getElementById('bRotateM').addEventListener('click', function () {
-    if (rotateMode) exitRotateMode(); else enterRotateMode();
-  });
-
-  sL.addEventListener('input', function () {
-    var t = sL.value / 1000;
-    signedArc = t * TAU;
-  });
-
-  function openFilePicker() { file.click(); }
-  document.getElementById('bLoad').addEventListener('click', openFilePicker);
-  document.getElementById('bLoadM').addEventListener('click', openFilePicker);
-
-  file.addEventListener('change', function () {
-    var f = file.files && file.files[0];
-    if (!f) return;
-    var url = URL.createObjectURL(f);
-    var img = new Image();
-    img.onload = function () {
-      bgImage = img;
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = function () {
-      URL.revokeObjectURL(url);
-      alert('图片载入失败');
-    };
-    img.src = url;
-  });
-
-  function clearBg() { bgImage = null; file.value = ''; }
-  document.getElementById('bClear').addEventListener('click', clearBg);
-  document.getElementById('bClearM').addEventListener('click', clearBg);
-
-  document.getElementById('bFloating').addEventListener('click', function () {
-    if (window.AndroidBridge && window.AndroidBridge.startFloating) {
-      window.AndroidBridge.startFloating();
-    } else {
-      alert('请在安卓 App 内使用悬浮窗功能');
-    }
-  });
-
-  function updateUI() {
-    var L = Math.abs(signedArc) * R;
-    if (vLM) vLM.textContent = Math.round(L).toLocaleString() + ' px';
-    var deg = (L / R) * 180 / Math.PI;
-    if (vTM) vTM.textContent = deg.toFixed(2) + '°';
-    var a = (alpha * 180 / Math.PI) % 360;
-    if (a < 0) a += 360;
-    if (vAM) vAM.textContent = a.toFixed(1) + '°';
-    if (vCM) vCM.textContent = Math.round(cx) + ', ' + Math.round(cy);
+    });
   }
 
-  function drawBackground() {
-    if (!bgImage) return;
-    var iw = bgImage.width, ih = bgImage.height;
-    if (!iw || !ih) return;
-    var s = Math.min(W / iw, H / ih);
-    var dw = iw * s, dh = ih * s;
-    var dx = (W - dw) / 2, dy = (H - dh) / 2;
-    ctx.drawImage(bgImage, dx, dy, dw, dh);
-  }
-
-  function drawStartButton(sx, sy) {
-    var bx = sx, by = sy - SBTN_OFFSET;
-
-    ctx.beginPath();
-    ctx.arc(bx, by, SBTN_R, 0, TAU);
-    ctx.fillStyle = 'rgba(22,27,34,0.6)';
-    ctx.fill();
-    ctx.strokeStyle = '#f0883e';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.strokeStyle = '#ffffff';
-    ctx.fillStyle = '#ffffff';
-    ctx.lineWidth = 2.4;
-    ctx.lineCap = 'round';
-
-    if (rotateMode) {
-      // 叉号
-      ctx.beginPath();
-      ctx.moveTo(bx - 6, by - 6); ctx.lineTo(bx + 6, by + 6);
-      ctx.moveTo(bx + 6, by - 6); ctx.lineTo(bx - 6, by + 6);
-      ctx.stroke();
-    } else {
-      // 旋转图标 ↻
-      ctx.beginPath();
-      ctx.arc(bx, by, 7, -Math.PI * 0.65, Math.PI * 0.55);
-      ctx.stroke();
-      // 箭头小三角
-      ctx.beginPath();
-      var ax = bx + 7 * Math.cos(-Math.PI * 0.65);
-      var ay = by + 7 * Math.sin(-Math.PI * 0.65);
-      ctx.moveTo(ax - 2, ay - 3);
-      ctx.lineTo(ax + 4, ay - 1);
-      ctx.lineTo(ax - 1, ay + 3);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
-
-  function render() {
-    ctx.clearRect(0, 0, W, H);
-    drawBackground();
-
-    var sr = R;
-    var a0 = alpha;
-    var a1 = alpha + signedArc;
-    var L  = Math.abs(signedArc) * R;
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, sr, 0, TAU);
-    ctx.strokeStyle = 'rgba(88,166,255,0.12)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 10]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    if (L > 0.01) {
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + sr * Math.cos(a0), cy + sr * Math.sin(a0));
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(cx + sr * Math.cos(a1), cy + sr * Math.sin(a1));
-      ctx.strokeStyle = 'rgba(126,231,135,0.25)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      var N = Math.max(64, Math.min(2000, Math.ceil(sr * Math.abs(signedArc) / 1.5)));
-      ctx.beginPath();
-      for (var i = 0; i <= N; i++) {
-        var aa = a0 + (a1 - a0) * (i / N);
-        var x = cx + sr * Math.cos(aa);
-        var y = cy + sr * Math.sin(aa);
-        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-      }
-      ctx.save();
-      ctx.shadowColor = 'rgba(126,231,135,0.9)';
-      ctx.shadowBlur = 14;
-      ctx.strokeStyle = '#7ee787';
-      ctx.lineWidth = 3.5;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    var sx = cx + sr * Math.cos(a0);
-    var sy = cy + sr * Math.sin(a0);
-
-    if (rotateMode) {
-      ctx.beginPath();
-      ctx.arc(sx, sy, 16, 0, TAU);
-      ctx.strokeStyle = '#f0883e';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(sx, sy, 8, 0, TAU);
-      ctx.fillStyle = '#58a6ff';
-      ctx.fill();
-    } else {
-      ctx.beginPath();
-      ctx.arc(sx, sy, 7, 0, TAU);
-      ctx.fillStyle = '#58a6ff';
-      ctx.fill();
-    }
-
-    var ex = cx + sr * Math.cos(a1);
-    var ey = cy + sr * Math.sin(a1);
-    ctx.beginPath();
-    ctx.arc(ex, ey, 9, 0, TAU);
-    ctx.fillStyle = 'rgba(126,231,135,0.25)';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(ex, ey, 6, 0, TAU);
-    ctx.fillStyle = '#7ee787';
-    ctx.fill();
-
-    if (cx > -50 && cx < W + 50 && cy > -50 && cy < H + 50) {
-      ctx.beginPath();
-      ctx.arc(cx, cy, 11, 0, TAU);
-      ctx.strokeStyle = 'rgba(240,136,62,0.6)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(cx, cy, 6, 0, TAU);
-      ctx.fillStyle = '#f0883e';
-      ctx.fill();
-    }
-
-    // 悬浮窗模式下，起点上方的旋转按钮
-    if (isFloating) drawStartButton(sx, sy);
-  }
+  // ============ 启动 ============
+  loadStored();
+  resize();
+  updateInputs();
 
   function tick() {
     render();
-    updateUI();
     requestAnimationFrame(tick);
   }
-
-  resize();
-  reset();
-  syncRotateButtons();
   requestAnimationFrame(tick);
 
 })();
