@@ -20,8 +20,8 @@
     padding:10px 14px;font-size:12px;line-height:1.7;
     box-shadow:0 8px 24px rgba(0,0,0,.45);
     user-select:none;z-index:10}
-  body.mode-main #panel{width:280px;max-width:92vw}
-  body.mode-floating #panel{width:260px;max-width:92vw}
+  body.mode-main #panel{width:260px;max-width:92vw}
+  body.mode-floating #panel{width:240px;max-width:92vw}
 
   #titleRow{display:flex;align-items:center;gap:8px}
   #titleRow h1{margin:0;font-size:13px;color:#58a6ff;letter-spacing:.5px}
@@ -62,8 +62,9 @@
   .btns button:hover{background:#30363d}
   .btns button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
   .btns button.primary:hover{background:#388bfd}
-  .btns button.on{background:#f0883e;border-color:#f0883e;color:#fff}
-  .btns button.on:hover{background:#f0883e}
+
+  .sliderRow{margin-top:10px}
+  .sliderRow input[type=range]{width:100%;accent-color:#58a6ff}
 
   #hint{position:fixed;top:20px;left:50%;transform:translateX(-50%);
     background:rgba(248,81,73,.92);color:#fff;
@@ -119,10 +120,8 @@
     <div class="btns main-only">
       <button id="bFloating">启动悬浮窗</button>
     </div>
-    <div class="btns">
-      <button class="ratioBtn" data-r="0.5">50%</button>
-      <button class="ratioBtn" data-r="0.66">66%</button>
-      <button class="ratioBtn" data-r="0.75">75%</button>
+    <div class="sliderRow">
+      <input type="range" id="slider" min="0" max="1000" value="0">
     </div>
   </div>
 </div>
@@ -157,20 +156,20 @@
   var CANVAS_W = 2000;
   var CANVAS_H = 1200;
 
-  // K 用整数存储，单位 = 1e-5
   var K_UNIT = 100000;
   var K_DEFAULT = 28;   // 0.00028
   var K_MIN = 1;        // 0.00001
 
   var kInt = K_DEFAULT;
 
-  // 比例（击中点位置）
-  var RATIO_DEFAULT = 0.66;
-  var ratio = RATIO_DEFAULT;
-
-  // 起终点（逻辑画布坐标）
+  // 起点
   var startX = 600, startY = 500;
+
+  // 击中点（当前显示段的末端，可被拖动、也可被滑块控制）
   var endX = 1400, endY = 700;
+
+  // 滑块值 0~1000，映射到击中点 x 坐标
+  var sliderVal = 0;
 
   // 屏幕
   var cv = document.getElementById('c');
@@ -187,6 +186,7 @@
   var numPad = document.getElementById('numPad');
   var npDisplay = document.getElementById('npDisplay');
   var hintEl = document.getElementById('hint');
+  var slider = document.getElementById('slider');
 
   var locked = false;
 
@@ -203,9 +203,6 @@
       var k = parseInt(localStorage.getItem(STORAGE_PREFIX + 'kInt'), 10);
       if (!isNaN(k) && k >= K_MIN) kInt = k;
 
-      var r = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'ratio'));
-      if (!isNaN(r) && r > 0 && r < 1) ratio = r;
-
       var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
       var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
       var ex = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endX'));
@@ -214,17 +211,20 @@
       if (!isNaN(sy)) startY = sy;
       if (!isNaN(ex)) endX = ex;
       if (!isNaN(ey)) endY = ey;
+
+      var sv = parseInt(localStorage.getItem(STORAGE_PREFIX + 'sliderVal'), 10);
+      if (!isNaN(sv)) sliderVal = sv;
     } catch (e) {}
   }
 
   function saveStored() {
     try {
       localStorage.setItem(STORAGE_PREFIX + 'kInt', String(kInt));
-      localStorage.setItem(STORAGE_PREFIX + 'ratio', String(ratio));
       localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
       localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
       localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
       localStorage.setItem(STORAGE_PREFIX + 'endY', String(endY));
+      localStorage.setItem(STORAGE_PREFIX + 'sliderVal', String(sliderVal));
     } catch (e) {}
   }
 
@@ -239,7 +239,7 @@
   function toLogicX(sx)  { return (sx - offsetX) / scale; }
   function toLogicY(sy)  { return (sy - offsetY) / scale; }
 
-  // ============ K 显示 / 读写 ============
+  // ============ K ============
   function getK() { return kInt / K_UNIT; }
   function setK(newInt) {
     if (newInt < K_MIN) newInt = K_MIN;
@@ -252,27 +252,7 @@
     vK.textContent = (kInt / K_UNIT).toFixed(5);
   }
 
-  // ============ 比例按钮 ============
-  var ratioBtns = document.querySelectorAll('.ratioBtn');
-
-  function updateRatioButtons() {
-    for (var i = 0; i < ratioBtns.length; i++) {
-      var r = parseFloat(ratioBtns[i].dataset.r);
-      ratioBtns[i].classList.toggle('on', Math.abs(r - ratio) < 1e-6);
-    }
-  }
-
-  for (var i = 0; i < ratioBtns.length; i++) {
-    (function (btn) {
-      btn.addEventListener('click', function () {
-        ratio = parseFloat(btn.dataset.r);
-        updateRatioButtons();
-        saveStored();
-      });
-    })(ratioBtns[i]);
-  }
-
-  // ============ 核心：由起点终点 K 解抛物线 ============
+  // ============ 抛物线 ============
   function calcParabola(x0, y0, x1, y1, K) {
     var d = x1 - x0;
     var h = y1 - y0;
@@ -292,31 +272,85 @@
     return { a: a, b: b, c: c };
   }
 
+  // ============ 滑块 ============
+  // 滑块 0~1000 → 击中点 x 坐标从 startX 向画布右侧延伸
+  function applySlider() {
+    var t = sliderVal / 1000;
+    // 击中点 x 从 startX + 1 到 CANVAS_W
+    var minX = startX + 1;
+    var maxX = CANVAS_W;
+    if (maxX <= minX) maxX = minX + 1;
+    endX = minX + t * (maxX - minX);
+
+    // 用当前 K 反解抛物线，得到 y
+    var p = calcParabola(startX, startY, endX, 1, getK());
+    // 这里先用一个临时 y 占位，后面用完整抛物线重算
+    // 实际上直接用完整抛物线
+    var p2 = calcParabola(startX, startY, endX, startY, getK());
+    // 不行，需要正确的 y。改用另一种方式：先固定抛物线，再求 y
+    // 这里简化：用当前抛物线求 y
+    if (baseParabola) {
+      endY = baseParabola.a * endX * endX + baseParabola.b * endX + baseParabola.c;
+    } else {
+      endY = startY;
+    }
+  }
+
+  // 基础抛物线（由起点、击中点、K 决定，滑块移动时不重算）
+  var baseParabola = null;
+
+  function recomputeBaseParabola() {
+    baseParabola = calcParabola(startX, startY, endX, endY, getK());
+  }
+
+  // 滑块移动时：只移动击中点，不重算抛物线
+  function onSliderInput() {
+    sliderVal = parseInt(slider.value, 10);
+    var t = sliderVal / 1000;
+
+    // 击中点 x 从 startX 向 CANVAS_W 延伸
+    var minX = startX + 1;
+    var maxX = CANVAS_W;
+    if (maxX <= minX) maxX = minX + 1;
+
+    var newEndX = minX + t * (maxX - minX);
+
+    // 用基础抛物线求 y
+    if (baseParabola) {
+      var newEndY = baseParabola.a * newEndX * newEndX + baseParabola.b * newEndX + baseParabola.c;
+
+      // 检查屏幕边缘，接近就停
+      var sx = toScreenX(newEndX);
+      var sy = toScreenY(newEndY);
+      var margin = 40;
+      if (sx < margin || sx > W - margin || sy < margin || sy > H - margin) {
+        // 超出边缘，回退
+        slider.value = sliderVal;
+        return;
+      }
+
+      endX = newEndX;
+      endY = newEndY;
+      saveStored();
+    }
+  }
+
   // ============ 绘制 ============
   function render() {
     ctx.clearRect(0, 0, W, H);
 
-    var K = getK();
-    var p = calcParabola(startX, startY, endX, endY, K);
+    var p = baseParabola;
 
     if (p) {
-      // 显示区间：从 startX 到 x2，x2 = x0 + (x1 - x0) / ratio
-      var dx = endX - startX;
-      var xEndDisplay;
-      if (Math.abs(dx) < 1e-9) {
-        xEndDisplay = startX;
-      } else {
-        xEndDisplay = startX + dx / ratio;
-      }
-
-      var xs = Math.min(startX, xEndDisplay);
-      var xe = Math.max(startX, xEndDisplay);
-      var span = xe - xs;
-
+      // 显示从起点到击中点
+      var xs = startX;
+      var xe = endX;
+      var span = Math.abs(xe - xs);
       var N = Math.max(64, Math.min(2000, Math.ceil(span)));
+
       ctx.beginPath();
       for (var i = 0; i <= N; i++) {
-        var lx = xs + span * (i / N);
+        var lx = xs + (xe - xs) * (i / N);
         var ly = p.a * lx * lx + p.b * lx + p.c;
         var sx = toScreenX(lx);
         var sy = toScreenY(ly);
@@ -337,13 +371,11 @@
       hintEl.classList.add('show');
     }
 
-    // 十字参考线（锁定时隐藏）
     if (!locked) {
       drawCrosshair(startX, startY, '#FF0000');
       drawCrosshair(endX, endY, '#0000FF');
     }
 
-    // 交点小圆点
     drawDot(startX, startY, '#FF0000');
     drawDot(endX, endY, '#0000FF');
   }
@@ -382,7 +414,7 @@
   }
   window.addEventListener('resize', resize);
 
-  // ============ 拖动十字线（触摸区 30px） ============
+  // ============ 拖动十字线 ============
   var drag = null;
   var TOUCH_THRESHOLD = 30;
 
@@ -410,6 +442,11 @@
     else if (drag === 'sy') startY = toLogicY(my);
     else if (drag === 'ex') endX = toLogicX(mx);
     else if (drag === 'ey') endY = toLogicY(my);
+
+    // 拖动后重算基础抛物线
+    recomputeBaseParabola();
+    // 滑块同步到击中点位置
+    syncSliderFromEnd();
     saveStored();
   });
 
@@ -418,6 +455,17 @@
     try { cv.releasePointerCapture(e.pointerId); } catch (_) {}
   });
   cv.addEventListener('pointercancel', function () { drag = null; });
+
+  // 根据当前击中点，把滑块同步到对应位置
+  function syncSliderFromEnd() {
+    var minX = startX + 1;
+    var maxX = CANVAS_W;
+    if (maxX <= minX) maxX = minX + 1;
+    var t = (endX - minX) / (maxX - minX);
+    t = Math.max(0, Math.min(1, t));
+    sliderVal = Math.round(t * 1000);
+    slider.value = sliderVal;
+  }
 
   // ============ 面板折叠 ============
   bToggle.addEventListener('click', function () {
@@ -436,29 +484,20 @@
     }
   };
 
-  // ============ K 加减号 + 长按（每秒 10 次） ============
+  // ============ K 加减号 + 长按 ============
   var holdTimer = null;
   var HOLD_INTERVAL = 100;
 
   function startHold(delta) {
     setK(kInt + delta);
     if (holdTimer) clearInterval(holdTimer);
-    holdTimer = setInterval(function () {
-      setK(kInt + delta);
-    }, HOLD_INTERVAL);
+    holdTimer = setInterval(function () { setK(kInt + delta); }, HOLD_INTERVAL);
   }
   function stopHold() {
-    if (holdTimer) {
-      clearInterval(holdTimer);
-      holdTimer = null;
-    }
+    if (holdTimer) { clearInterval(holdTimer); holdTimer = null; }
   }
-
   function bindHold(btn, delta) {
-    btn.addEventListener('pointerdown', function (e) {
-      e.preventDefault();
-      startHold(delta);
-    });
+    btn.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(delta); });
     btn.addEventListener('pointerup', stopHold);
     btn.addEventListener('pointerleave', stopHold);
     btn.addEventListener('pointercancel', stopHold);
@@ -468,15 +507,12 @@
 
   // ============ 数字键盘 ============
   var npBuffer = '';
-
   function showNumPad() {
     npBuffer = (kInt / K_UNIT).toFixed(5);
     npDisplay.textContent = npBuffer;
     numPad.classList.add('show');
   }
-  function hideNumPad() {
-    numPad.classList.remove('show');
-  }
+  function hideNumPad() { numPad.classList.remove('show'); }
   function npAppend(ch) {
     if (ch === '.' && npBuffer.indexOf('.') >= 0) return;
     if (npBuffer.length >= 20) return;
@@ -491,12 +527,11 @@
     var v = parseFloat(npBuffer);
     if (!isNaN(v) && v > 0) {
       setK(Math.round(v * K_UNIT));
+      recomputeBaseParabola();
     }
     hideNumPad();
   }
-
   vK.addEventListener('click', showNumPad);
-
   numPad.addEventListener('click', function (e) {
     var btn = e.target.closest('button');
     if (!btn) return;
@@ -511,13 +546,12 @@
   // ============ 恢复默认 ============
   document.getElementById('bReset').addEventListener('click', function () {
     kInt = K_DEFAULT;
-    ratio = RATIO_DEFAULT;
     updateKDisplay();
-    updateRatioButtons();
+    recomputeBaseParabola();
     saveStored();
   });
 
-  // ============ 启动悬浮窗（仅主界面） ============
+  // ============ 启动悬浮窗 ============
   var bFloating = document.getElementById('bFloating');
   if (bFloating) {
     bFloating.addEventListener('click', function () {
@@ -529,11 +563,19 @@
     });
   }
 
+  // ============ 滑块事件 ============
+  slider.addEventListener('input', onSliderInput);
+
   // ============ 启动 ============
   loadStored();
   resize();
   updateKDisplay();
-  updateRatioButtons();
+
+  // 初始化基础抛物线
+  recomputeBaseParabola();
+
+  // 如果存了击中点，同步滑块
+  syncSliderFromEnd();
 
   function tick() {
     render();
