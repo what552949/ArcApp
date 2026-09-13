@@ -20,8 +20,8 @@
     padding:10px 14px;font-size:12px;line-height:1.7;
     box-shadow:0 8px 24px rgba(0,0,0,.45);
     user-select:none;z-index:10}
-  body.mode-main #panel{width:320px;max-width:92vw}
-  body.mode-floating #panel{width:300px;max-width:92vw}
+  body.mode-main #panel{width:260px;max-width:92vw}
+  body.mode-floating #panel{width:240px;max-width:92vw}
 
   #titleRow{display:flex;align-items:center;gap:8px}
   #titleRow h1{margin:0;font-size:13px;color:#58a6ff;letter-spacing:.5px}
@@ -38,14 +38,22 @@
 
   #body{margin-top:8px}
 
-  .row{display:flex;justify-content:space-between;gap:8px;align-items:center;
-    margin-bottom:4px}
-  .row > span:first-child{color:#8b949e;flex:0 0 auto}
-  .inp{flex:1 1 auto;min-width:0;
-    background:#0d1117;border:1px solid #30363d;border-radius:5px;
-    padding:3px 8px;color:#7ee787;font-family:inherit;font-size:12px;
-    text-align:right;outline:none;cursor:pointer}
-  .inp:hover{border-color:#58a6ff}
+  .kRow{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+  .kRow > span:first-child{color:#8b949e;flex:0 0 auto}
+  .kCtrl{display:flex;align-items:center;gap:4px;flex:1 1 auto;justify-content:flex-end}
+  .k-btn{width:24px;height:24px;padding:0;flex:0 0 auto;
+    background:#21262d;border:1px solid #30363d;border-radius:5px;
+    color:#c9d1d9;font-size:14px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    font-family:inherit}
+  .k-btn:hover{background:#30363d}
+  .k-btn:active{background:#1f6feb}
+  .k-val{flex:1 1 auto;min-width:0;text-align:right;
+    padding:2px 6px;
+    background:transparent;border:1px solid transparent;border-radius:5px;
+    color:#7ee787;font-family:inherit;font-size:12px;
+    cursor:pointer;outline:none}
+  .k-val:hover{border-color:#30363d}
 
   .btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .btns button{flex:1;background:#21262d;color:#c9d1d9;border:1px solid #30363d;
@@ -54,6 +62,13 @@
   .btns button:hover{background:#30363d}
   .btns button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
   .btns button.primary:hover{background:#388bfd}
+
+  #hint{position:fixed;top:20px;left:50%;transform:translateX(-50%);
+    background:rgba(248,81,73,.92);color:#fff;
+    padding:8px 18px;border-radius:8px;font-size:13px;
+    box-shadow:0 4px 16px rgba(0,0,0,.5);
+    z-index:50;display:none;white-space:nowrap}
+  #hint.show{display:block}
 
   #numPad{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);
     width:250px;background:rgba(22,27,34,.97);
@@ -80,17 +95,23 @@
 <body>
 <canvas id="c"></canvas>
 
+<div id="hint"></div>
+
 <div id="panel">
   <div id="titleRow">
     <button id="bToggle" title="折叠 / 展开">■</button>
     <h1>抛物线参数</h1>
   </div>
   <div id="body">
-    <div class="row"><span>画布宽</span><input class="inp" id="inpW" readonly></div>
-    <div class="row"><span>画布高</span><input class="inp" id="inpH" readonly></div>
-    <div class="row"><span>系数 a</span><input class="inp" id="inpA" readonly></div>
+    <div class="kRow">
+      <span>K</span>
+      <span class="kCtrl">
+        <button class="k-btn" id="bKMinus">−</button>
+        <span class="k-val" id="vK">0.00028</span>
+        <button class="k-btn" id="bKPlus">+</button>
+      </span>
+    </div>
     <div class="btns">
-      <button id="bApply" class="primary">应用</button>
       <button id="bReset">恢复默认</button>
     </div>
     <div class="btns main-only">
@@ -126,14 +147,15 @@
   var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
   var STORAGE_PREFIX = isFloating ? 'arcapp_floating_' : 'arcapp_main_';
 
-  var DEFAULT_W = 2000;
-  var DEFAULT_H = 1200;
-  var DEFAULT_A = 0.0002229078;
+  var CANVAS_W = 2000;
+  var CANVAS_H = 1200;
 
-  // 当前已应用的值（用于绘制）
-  var canvasW = DEFAULT_W;
-  var canvasH = DEFAULT_H;
-  var a = DEFAULT_A;
+  // K 用整数存储，单位 = 1e-5
+  var K_UNIT = 100000;
+  var K_DEFAULT = 28;   // 0.00028
+  var K_MIN = 1;        // 0.00001
+
+  var kInt = K_DEFAULT;
 
   // 起终点（逻辑画布坐标）
   var startX = 600, startY = 500;
@@ -145,19 +167,18 @@
   var W = 0, H = 0, DPR = 1;
   var scale = 1, offsetX = 0, offsetY = 0;
 
-  // UI 元素
+  // UI
   var panel = document.getElementById('panel');
   var bToggle = document.getElementById('bToggle');
-  var inpW = document.getElementById('inpW');
-  var inpH = document.getElementById('inpH');
-  var inpA = document.getElementById('inpA');
+  var vK = document.getElementById('vK');
+  var bKPlus = document.getElementById('bKPlus');
+  var bKMinus = document.getElementById('bKMinus');
   var numPad = document.getElementById('numPad');
   var npDisplay = document.getElementById('npDisplay');
+  var hintEl = document.getElementById('hint');
 
-  // 锁定状态（由原生调用 __setPanelCollapsed 控制）
   var locked = false;
 
-  // 模式 class
   if (isFloating) {
     document.body.classList.add('mode-floating');
     document.documentElement.classList.add('mode-floating');
@@ -165,15 +186,11 @@
     document.body.classList.add('mode-main');
   }
 
-  // ============ 本地存储（主界面 / 悬浮窗各一套 key） ============
+  // ============ 本地存储 ============
   function loadStored() {
     try {
-      var w = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'canvasW'));
-      var h = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'canvasH'));
-      var av = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'a'));
-      if (!isNaN(w) && w > 0) canvasW = w;
-      if (!isNaN(h) && h > 0) canvasH = h;
-      if (!isNaN(av)) a = av;
+      var k = parseInt(localStorage.getItem(STORAGE_PREFIX + 'kInt'), 10);
+      if (!isNaN(k) && k >= K_MIN) kInt = k;
 
       var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
       var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
@@ -188,9 +205,7 @@
 
   function saveStored() {
     try {
-      localStorage.setItem(STORAGE_PREFIX + 'canvasW', String(canvasW));
-      localStorage.setItem(STORAGE_PREFIX + 'canvasH', String(canvasH));
-      localStorage.setItem(STORAGE_PREFIX + 'a', String(a));
+      localStorage.setItem(STORAGE_PREFIX + 'kInt', String(kInt));
       localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
       localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
       localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
@@ -200,41 +215,63 @@
 
   // ============ 坐标映射 ============
   function recalcMapping() {
-    scale = Math.min(W / canvasW, H / canvasH);
-    var drawW = canvasW * scale;
-    var drawH = canvasH * scale;
-    offsetX = (W - drawW) / 2;
-    offsetY = (H - drawH) / 2;
+    scale = Math.min(W / CANVAS_W, H / CANVAS_H);
+    offsetX = (W - CANVAS_W * scale) / 2;
+    offsetY = (H - CANVAS_H * scale) / 2;
   }
-
   function toScreenX(lx) { return offsetX + lx * scale; }
   function toScreenY(ly) { return offsetY + ly * scale; }
   function toLogicX(sx)  { return (sx - offsetX) / scale; }
   function toLogicY(sy)  { return (sy - offsetY) / scale; }
 
-  // ============ 抛物线 y = a*x^2 + b*x + c 求 b、c ============
-  function computeBC() {
-    var dx = endX - startX;
-    if (Math.abs(dx) < 1e-9) return null;
-    var b = (endY - startY - a * (endX * endX - startX * startX)) / dx;
-    var c = startY - a * startX * startX - b * startX;
-    return { b: b, c: c };
+  // ============ K 显示 / 读写 ============
+  function getK() { return kInt / K_UNIT; }
+  function setK(newInt) {
+    if (newInt < K_MIN) newInt = K_MIN;
+    if (newInt === kInt) return;
+    kInt = newInt;
+    updateKDisplay();
+    saveStored();
+  }
+  function updateKDisplay() {
+    vK.textContent = (kInt / K_UNIT).toFixed(5);
+  }
+
+  // ============ 核心：由起点终点 K 解抛物线 ============
+  function calcParabola(x0, y0, x1, y1, K) {
+    var d = x1 - x0;
+    var h = y1 - y0;
+    var A = K * d * d;
+    if (Math.abs(A) < 1e-15) return null;
+    var disc = d * d - 4 * A * (A - h);
+    if (disc < 0) return null;
+
+    var sq = Math.sqrt(disc);
+    var t1 = (d - sq) / (2 * A);
+    var t2 = (d + sq) / (2 * A);
+    var t = Math.abs(t1) < Math.abs(t2) ? t1 : t2;
+
+    var a = K * (1 + t * t);
+    var b = -t - 2 * a * x0;
+    var c = y0 + t * x0 + a * x0 * x0;
+    return { a: a, b: b, c: c };
   }
 
   // ============ 绘制 ============
   function render() {
     ctx.clearRect(0, 0, W, H);
 
-    // 抛物线（只画起终点之间那一段）
-    var abc = computeBC();
-    if (abc) {
+    var K = getK();
+    var p = calcParabola(startX, startY, endX, endY, K);
+
+    if (p) {
       var xs = Math.min(startX, endX);
       var xe = Math.max(startX, endX);
-      var N = Math.max(48, Math.min(1200, Math.ceil(Math.abs(xe - xs))));
+      var N = Math.max(64, Math.min(1500, Math.ceil(Math.abs(xe - xs))));
       ctx.beginPath();
       for (var i = 0; i <= N; i++) {
         var lx = xs + (xe - xs) * (i / N);
-        var ly = a * lx * lx + abc.b * lx + abc.c;
+        var ly = p.a * lx * lx + p.b * lx + p.c;
         var sx = toScreenX(lx);
         var sy = toScreenY(ly);
         if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy);
@@ -248,6 +285,10 @@
       ctx.lineCap = 'round';
       ctx.stroke();
       ctx.restore();
+      hintEl.classList.remove('show');
+    } else {
+      hintEl.textContent = 'K 值过大，请调小数值';
+      hintEl.classList.add('show');
     }
 
     // 十字参考线（锁定时隐藏）
@@ -256,7 +297,7 @@
       drawCrosshair(endX, endY, '#0000FF');
     }
 
-    // 起终点小圆点
+    // 交点小圆点
     drawDot(startX, startY, '#FF0000');
     drawDot(endX, endY, '#0000FF');
   }
@@ -265,7 +306,7 @@
     var sx = toScreenX(lx);
     var sy = toScreenY(ly);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(sx, 0); ctx.lineTo(sx, H);
     ctx.moveTo(0, sy); ctx.lineTo(W, sy);
@@ -276,12 +317,9 @@
     var sx = toScreenX(lx);
     var sy = toScreenY(ly);
     ctx.beginPath();
-    ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+    ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
   }
 
   // ============ 尺寸 ============
@@ -296,16 +334,14 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     recalcMapping();
   }
-
   window.addEventListener('resize', resize);
 
-  // ============ 拖动十字线（触摸区放大到 30px） ============
+  // ============ 拖动十字线（触摸区 30px） ============
   var drag = null;
   var TOUCH_THRESHOLD = 30;
 
   cv.addEventListener('pointerdown', function (e) {
     var mx = e.clientX, my = e.clientY;
-
     var targets = [
       { type: 'sx', dist: Math.abs(mx - toScreenX(startX)) },
       { type: 'sy', dist: Math.abs(my - toScreenY(startY)) },
@@ -313,7 +349,6 @@
       { type: 'ey', dist: Math.abs(my - toScreenY(endY)) }
     ];
     targets.sort(function (p, q) { return p.dist - q.dist; });
-
     var t = targets[0];
     if (t.dist <= TOUCH_THRESHOLD) {
       drag = t.type;
@@ -344,7 +379,6 @@
     bToggle.textContent = collapsed ? '▼' : '■';
   });
 
-  // 原生锁定时调用：锁定 = 折叠面板 + 隐藏十字线
   window.__setPanelCollapsed = function (c) {
     locked = !!c;
     if (c) {
@@ -356,25 +390,46 @@
     }
   };
 
-  // ============ 输入框 + 九宫格 ============
-  var activeInput = null;
-  var npBuffer = '';
+  // ============ K 加减号 + 长按（每秒 10 次） ============
+  var holdTimer = null;
+  var HOLD_INTERVAL = 100;
 
-  function updateInputs() {
-    inpW.value = String(canvasW);
-    inpH.value = String(canvasH);
-    inpA.value = String(a);
+  function startHold(delta) {
+    setK(kInt + delta);
+    if (holdTimer) clearInterval(holdTimer);
+    holdTimer = setInterval(function () {
+      setK(kInt + delta);
+    }, HOLD_INTERVAL);
+  }
+  function stopHold() {
+    if (holdTimer) {
+      clearInterval(holdTimer);
+      holdTimer = null;
+    }
   }
 
-  function showNumPad(input) {
-    activeInput = input;
-    npBuffer = input.value || '';
-    npDisplay.textContent = npBuffer || '0';
+  function bindHold(btn, delta) {
+    btn.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      startHold(delta);
+    });
+    btn.addEventListener('pointerup', stopHold);
+    btn.addEventListener('pointerleave', stopHold);
+    btn.addEventListener('pointercancel', stopHold);
+  }
+  bindHold(bKPlus, 1);
+  bindHold(bKMinus, -1);
+
+  // ============ 数字键盘 ============
+  var npBuffer = '';
+
+  function showNumPad() {
+    npBuffer = (kInt / K_UNIT).toFixed(5);
+    npDisplay.textContent = npBuffer;
     numPad.classList.add('show');
   }
   function hideNumPad() {
     numPad.classList.remove('show');
-    activeInput = null;
   }
   function npAppend(ch) {
     if (ch === '.' && npBuffer.indexOf('.') >= 0) return;
@@ -387,15 +442,14 @@
     npDisplay.textContent = npBuffer || '0';
   }
   function npConfirm() {
-    if (activeInput) {
-      activeInput.value = npBuffer;
+    var v = parseFloat(npBuffer);
+    if (!isNaN(v) && v > 0) {
+      setK(Math.round(v * K_UNIT));
     }
     hideNumPad();
   }
 
-  inpW.addEventListener('click', function () { showNumPad(inpW); });
-  inpH.addEventListener('click', function () { showNumPad(inpH); });
-  inpA.addEventListener('click', function () { showNumPad(inpA); });
+  vK.addEventListener('click', showNumPad);
 
   numPad.addEventListener('click', function (e) {
     var btn = e.target.closest('button');
@@ -408,56 +462,14 @@
     else if (/^\d$/.test(k)) npAppend(k);
   });
 
-  // ============ 应用按钮 ============
-  document.getElementById('bApply').addEventListener('click', function () {
-    var w  = parseFloat(inpW.value);
-    var h  = parseFloat(inpH.value);
-    var av = parseFloat(inpA.value);
-    if (isNaN(w) || w <= 0) { alert('画布宽无效'); return; }
-    if (isNaN(h) || h <= 0) { alert('画布高无效'); return; }
-    if (isNaN(av)) { alert('系数 a 无效'); return; }
-
-    // 保持屏幕视觉位置不变，重新计算起终点逻辑坐标
-    var sSx = toScreenX(startX);
-    var sSy = toScreenY(startY);
-    var eSx = toScreenX(endX);
-    var eSy = toScreenY(endY);
-
-    canvasW = w;
-    canvasH = h;
-    a = av;
-    recalcMapping();
-
-    startX = toLogicX(sSx);
-    startY = toLogicY(sSy);
-    endX   = toLogicX(eSx);
-    endY   = toLogicY(eSy);
-
-    saveStored();
-  });
-
   // ============ 恢复默认 ============
   document.getElementById('bReset').addEventListener('click', function () {
-    var sSx = toScreenX(startX);
-    var sSy = toScreenY(startY);
-    var eSx = toScreenX(endX);
-    var eSy = toScreenY(endY);
-
-    canvasW = DEFAULT_W;
-    canvasH = DEFAULT_H;
-    a = DEFAULT_A;
-    recalcMapping();
-
-    startX = toLogicX(sSx);
-    startY = toLogicY(sSy);
-    endX   = toLogicX(eSx);
-    endY   = toLogicY(eSy);
-
-    updateInputs();
+    kInt = K_DEFAULT;
+    updateKDisplay();
     saveStored();
   });
 
-  // ============ 启动悬浮窗按钮（仅主界面） ============
+  // ============ 启动悬浮窗（仅主界面） ============
   var bFloating = document.getElementById('bFloating');
   if (bFloating) {
     bFloating.addEventListener('click', function () {
@@ -472,7 +484,7 @@
   // ============ 启动 ============
   loadStored();
   resize();
-  updateInputs();
+  updateKDisplay();
 
   function tick() {
     render();
