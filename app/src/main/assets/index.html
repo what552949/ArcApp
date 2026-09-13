@@ -183,6 +183,9 @@
 
   var lastSnapCenter = null;
 
+  // 背景图（仅主界面显示，不存本地）
+  var bgImage = null;
+
   var cv = document.getElementById('c');
   var ctx = cv.getContext('2d');
   var W = 0, H = 0, DPR = 1;
@@ -295,8 +298,34 @@
     return { a: a, b: b, c: c };
   }
 
+  // 画背景图（仅主界面，等比缩放居中铺在画布区域）
+  function drawBackgroundImage() {
+    if (isFloating) return;
+    if (!bgImage) return;
+
+    var iw = bgImage.naturalWidth || bgImage.width;
+    var ih = bgImage.naturalHeight || bgImage.height;
+    if (!iw || !ih) return;
+
+    var areaX = offsetX;
+    var areaY = offsetY;
+    var areaW = CANVAS_W * scale;
+    var areaH = CANVAS_H * scale;
+
+    var s = Math.min(areaW / iw, areaH / ih);
+    var dw = iw * s;
+    var dh = ih * s;
+    var dx = areaX + (areaW - dw) / 2;
+    var dy = areaY + (areaH - dh) / 2;
+
+    ctx.drawImage(bgImage, dx, dy, dw, dh);
+  }
+
   function render() {
     ctx.clearRect(0, 0, W, H);
+
+    // 背景图（仅主界面）
+    drawBackgroundImage();
 
     var K = getK();
     var p = calcParabola(startX, startY, endX, endY, K);
@@ -499,7 +528,6 @@
     else if (/^\d$/.test(k)) npAppend(k);
   });
 
-  // ============ 提示 ============
   function showHint(text, persist) {
     hintEl.textContent = text;
     hintEl.classList.add('show');
@@ -515,12 +543,6 @@
     }
   }
 
-  // ============ 白色识别（带诊断） ============
-  // 返回：
-  //   { ok: true, center: {x, y} }
-  //   { ok: false, reason: 'draw-fail' }      离屏画布创建/绘制失败
-  //   { ok: false, reason: 'read-fail', msg } getImageData 抛异常（跨域等）
-  //   { ok: false, reason: 'no-white' }      读到像素，但区域内没有满足阈值的白点
   function findWhiteCenter(img, cx, cy, radius) {
     var off = document.createElement('canvas');
     off.width = CANVAS_W;
@@ -588,6 +610,12 @@
     img.onload = function () {
       var w0 = img.naturalWidth || img.width;
       var h0 = img.naturalHeight || img.height;
+
+      // 主界面：把图片设为背景显示（悬浮窗不显示）
+      if (!isFloating) {
+        bgImage = img;
+      }
+
       var res = findWhiteCenter(img, startX, startY, SEARCH_RADIUS);
       URL.revokeObjectURL(url);
 
