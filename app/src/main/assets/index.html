@@ -20,8 +20,8 @@
     padding:10px 14px;font-size:12px;line-height:1.7;
     box-shadow:0 8px 24px rgba(0,0,0,.45);
     user-select:none;z-index:10}
-  body.mode-main #panel{width:260px;max-width:92vw}
-  body.mode-floating #panel{width:240px;max-width:92vw}
+  body.mode-main #panel{width:280px;max-width:92vw}
+  body.mode-floating #panel{width:260px;max-width:92vw}
 
   #titleRow{display:flex;align-items:center;gap:8px}
   #titleRow h1{margin:0;font-size:13px;color:#58a6ff;letter-spacing:.5px}
@@ -39,7 +39,7 @@
   #body{margin-top:8px}
 
   .kRow{display:flex;align-items:center;gap:6px;margin-bottom:4px}
-  .kRow > span:first-child{color:#8b949e;flex:0 0 auto}
+  .kRow > span:first-child{color:#8b949e;flex:0 0 auto;min-width:36px}
   .kCtrl{display:flex;align-items:center;gap:4px;flex:1 1 auto;justify-content:flex-end}
   .k-btn{width:24px;height:24px;padding:0;flex:0 0 auto;
     background:#21262d;border:1px solid #30363d;border-radius:5px;
@@ -111,14 +111,27 @@
         <button class="k-btn" id="bKPlus">+</button>
       </span>
     </div>
+    <div class="kRow">
+      <span>偏移</span>
+      <span class="kCtrl">
+        <button class="k-btn" id="bOMinus">−</button>
+        <span class="k-val" id="vO">40</span>
+        <button class="k-btn" id="bOPlus">+</button>
+      </span>
+    </div>
     <div class="btns">
       <button id="bReset">恢复默认</button>
     </div>
     <div class="btns main-only">
       <button id="bFloating">启动悬浮窗</button>
     </div>
+    <div class="btns">
+      <button id="bLoad" class="primary">载入图片吸附</button>
+    </div>
   </div>
 </div>
+
+<input type="file" id="file" accept="image/*" hidden>
 
 <div id="numPad">
   <div class="np-display" id="npDisplay">0</div>
@@ -154,11 +167,22 @@
   var K_DEFAULT = 28;   // 0.00028
   var K_MIN = 1;        // 0.00001
 
+  var OFFSET_DEFAULT = 40;
+  var OFFSET_MIN = 0;
+  var OFFSET_MAX = 300;
+
+  var SEARCH_RADIUS = 50;
+  var WHITE_THRESHOLD = 200;
+
   var kInt = K_DEFAULT;
+  var offset = OFFSET_DEFAULT;
 
   // 起点、终点（逻辑画布坐标）
   var startX = 600, startY = 500;
   var endX = 1400, endY = 700;
+
+  // 上次识别到的白点中心（用于偏移量调整后重新吸附）
+  var lastSnapCenter = null;
 
   // 屏幕
   var cv = document.getElementById('c');
@@ -172,9 +196,13 @@
   var vK = document.getElementById('vK');
   var bKPlus = document.getElementById('bKPlus');
   var bKMinus = document.getElementById('bKMinus');
+  var vO = document.getElementById('vO');
+  var bOPlus = document.getElementById('bOPlus');
+  var bOMinus = document.getElementById('bOMinus');
   var numPad = document.getElementById('numPad');
   var npDisplay = document.getElementById('npDisplay');
   var hintEl = document.getElementById('hint');
+  var fileInput = document.getElementById('file');
 
   var locked = false;
 
@@ -191,6 +219,9 @@
       var k = parseInt(localStorage.getItem(STORAGE_PREFIX + 'kInt'), 10);
       if (!isNaN(k) && k >= K_MIN) kInt = k;
 
+      var o = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset'), 10);
+      if (!isNaN(o)) offset = Math.max(OFFSET_MIN, Math.min(OFFSET_MAX, o));
+
       var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
       var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
       var ex = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endX'));
@@ -205,6 +236,7 @@
   function saveStored() {
     try {
       localStorage.setItem(STORAGE_PREFIX + 'kInt', String(kInt));
+      localStorage.setItem(STORAGE_PREFIX + 'offset', String(offset));
       localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
       localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
       localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
@@ -234,6 +266,22 @@
   }
   function updateKDisplay() {
     vK.textContent = (kInt / K_UNIT).toFixed(5);
+  }
+
+  // ============ 偏移 ============
+  function setOffset(newO) {
+    newO = Math.round(newO);
+    if (newO < OFFSET_MIN) newO = OFFSET_MIN;
+    if (newO > OFFSET_MAX) newO = OFFSET_MAX;
+    if (newO === offset) return;
+    offset = newO;
+    updateOffsetDisplay();
+    saveStored();
+    // 如果之前吸附过，重新应用吸附
+    if (lastSnapCenter) applySnapFromCenter();
+  }
+  function updateOffsetDisplay() {
+    vO.textContent = String(offset);
   }
 
   // ============ 抛物线 ============
@@ -286,19 +334,17 @@
       ctx.lineCap = 'round';
       ctx.stroke();
       ctx.restore();
-      hintEl.classList.remove('show');
+      if (!hintEl.dataset.persist) hintEl.classList.remove('show');
     } else {
       hintEl.textContent = 'K 值过大，请调小数值';
       hintEl.classList.add('show');
     }
 
-    // 十字参考线（锁定时隐藏）
     if (!locked) {
       drawCrosshair(startX, startY, '#FF0000');
       drawCrosshair(endX, endY, '#0000FF');
     }
 
-    // 交点小圆点
     drawDot(startX, startY, '#FF0000');
     drawDot(endX, endY, '#0000FF');
   }
@@ -337,7 +383,7 @@
   }
   window.addEventListener('resize', resize);
 
-  // ============ 拖动十字线（触摸区 30px） ============
+  // ============ 拖动十字线 ============
   var drag = null;
   var TOUCH_THRESHOLD = 30;
 
@@ -391,35 +437,48 @@
     }
   };
 
-  // ============ K 加减号 + 长按 ============
+  // ============ 长按按钮通用 ============
   var holdTimer = null;
   var HOLD_INTERVAL = 100;
 
-  function startHold(delta) {
-    setK(kInt + delta);
+  function startHold(fn) {
+    fn();
     if (holdTimer) clearInterval(holdTimer);
-    holdTimer = setInterval(function () { setK(kInt + delta); }, HOLD_INTERVAL);
+    holdTimer = setInterval(fn, HOLD_INTERVAL);
   }
   function stopHold() {
     if (holdTimer) { clearInterval(holdTimer); holdTimer = null; }
   }
-  function bindHold(btn, delta) {
-    btn.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(delta); });
+  function bindHold(btn, fn) {
+    btn.addEventListener('pointerdown', function (e) { e.preventDefault(); startHold(fn); });
     btn.addEventListener('pointerup', stopHold);
     btn.addEventListener('pointerleave', stopHold);
     btn.addEventListener('pointercancel', stopHold);
   }
-  bindHold(bKPlus, 1);
-  bindHold(bKMinus, -1);
 
-  // ============ 数字键盘 ============
+  bindHold(bKPlus, function () { setK(kInt + 1); });
+  bindHold(bKMinus, function () { setK(kInt - 1); });
+  bindHold(bOPlus, function () { setOffset(offset + 1); });
+  bindHold(bOMinus, function () { setOffset(offset - 1); });
+
+  // ============ 数字键盘（通用） ============
   var npBuffer = '';
-  function showNumPad() {
-    npBuffer = (kInt / K_UNIT).toFixed(5);
+  var activeTarget = null; // 'k' 或 'offset'
+
+  function showNumPad(target) {
+    activeTarget = target;
+    if (target === 'k') {
+      npBuffer = (kInt / K_UNIT).toFixed(5);
+    } else if (target === 'offset') {
+      npBuffer = String(offset);
+    }
     npDisplay.textContent = npBuffer;
     numPad.classList.add('show');
   }
-  function hideNumPad() { numPad.classList.remove('show'); }
+  function hideNumPad() {
+    numPad.classList.remove('show');
+    activeTarget = null;
+  }
   function npAppend(ch) {
     if (ch === '.' && npBuffer.indexOf('.') >= 0) return;
     if (npBuffer.length >= 20) return;
@@ -431,13 +490,19 @@
     npDisplay.textContent = npBuffer || '0';
   }
   function npConfirm() {
-    var v = parseFloat(npBuffer);
-    if (!isNaN(v) && v > 0) {
-      setK(Math.round(v * K_UNIT));
+    if (activeTarget === 'k') {
+      var v = parseFloat(npBuffer);
+      if (!isNaN(v) && v > 0) setK(Math.round(v * K_UNIT));
+    } else if (activeTarget === 'offset') {
+      var o = parseFloat(npBuffer);
+      if (!isNaN(o)) setOffset(o);
     }
     hideNumPad();
   }
-  vK.addEventListener('click', showNumPad);
+
+  vK.addEventListener('click', function () { showNumPad('k'); });
+  vO.addEventListener('click', function () { showNumPad('offset'); });
+
   numPad.addEventListener('click', function (e) {
     var btn = e.target.closest('button');
     if (!btn) return;
@@ -449,10 +514,103 @@
     else if (/^\d$/.test(k)) npAppend(k);
   });
 
+  // ============ 载入图片 + 白色吸附 ============
+  function showHint(text, persist) {
+    hintEl.textContent = text;
+    hintEl.classList.add('show');
+    if (persist) {
+      hintEl.dataset.persist = '1';
+      setTimeout(function () {
+        hintEl.classList.remove('show');
+        delete hintEl.dataset.persist;
+      }, 2500);
+    } else {
+      delete hintEl.dataset.persist;
+    }
+  }
+
+  function findWhiteCenter(img, cx, cy, radius) {
+    var off = document.createElement('canvas');
+    off.width = CANVAS_W;
+    off.height = CANVAS_H;
+    var octx = off.getContext('2d');
+    octx.drawImage(img, 0, 0, CANVAS_W, CANVAS_H);
+
+    var x0 = Math.max(0, Math.floor(cx - radius));
+    var y0 = Math.max(0, Math.floor(cy - radius));
+    var x1 = Math.min(CANVAS_W - 1, Math.ceil(cx + radius));
+    var y1 = Math.min(CANVAS_H - 1, Math.ceil(cy + radius));
+    var w = x1 - x0 + 1;
+    var h = y1 - y0 + 1;
+    if (w <= 0 || h <= 0) return null;
+
+    var data;
+    try {
+      data = octx.getImageData(x0, y0, w, h).data;
+    } catch (err) {
+      return null;
+    }
+
+    var sumX = 0, sumY = 0, count = 0;
+    for (var j = 0; j < h; j++) {
+      for (var i = 0; i < w; i++) {
+        var idx = (j * w + i) * 4;
+        var r = data[idx];
+        var g = data[idx + 1];
+        var b = data[idx + 2];
+        var a = data[idx + 3];
+        if (a >= 200 && r >= WHITE_THRESHOLD && g >= WHITE_THRESHOLD && b >= WHITE_THRESHOLD) {
+          sumX += (x0 + i);
+          sumY += (y0 + j);
+          count++;
+        }
+      }
+    }
+    if (count === 0) return null;
+    return { x: sumX / count, y: sumY / count };
+  }
+
+  function applySnapFromCenter() {
+    if (!lastSnapCenter) return;
+    startX = lastSnapCenter.x;
+    startY = lastSnapCenter.y + offset;
+    saveStored();
+  }
+
+  document.getElementById('bLoad').addEventListener('click', function () {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    var img = new Image();
+    img.onload = function () {
+      var center = findWhiteCenter(img, startX, startY, SEARCH_RADIUS);
+      URL.revokeObjectURL(url);
+      if (!center) {
+        showHint('起点周围 ' + SEARCH_RADIUS + 'px 内没找到白色', true);
+        return;
+      }
+      lastSnapCenter = center;
+      applySnapFromCenter();
+      showHint('已吸附', true);
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      showHint('图片载入失败', true);
+    };
+    img.src = url;
+    fileInput.value = '';
+  });
+
   // ============ 恢复默认 ============
   document.getElementById('bReset').addEventListener('click', function () {
     kInt = K_DEFAULT;
+    offset = OFFSET_DEFAULT;
     updateKDisplay();
+    updateOffsetDisplay();
     saveStored();
   });
 
@@ -472,6 +630,7 @@
   loadStored();
   resize();
   updateKDisplay();
+  updateOffsetDisplay();
 
   function tick() {
     render();
