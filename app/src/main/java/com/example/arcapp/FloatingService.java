@@ -18,6 +18,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -41,11 +42,10 @@ public class FloatingService extends Service {
     private ValueCallback<Uri[]> filePathCallback;
     private static final int LOCK_SIZE_DP = 56;
 
-    // 三击关闭相关
     private final Handler lockHandler = new Handler(Looper.getMainLooper());
     private long lastClickTime = 0;
     private int clickCount = 0;
-    private static final long MULTI_CLICK_WINDOW = 400L;   // 相邻点击间隔窗口(ms)
+    private static final long MULTI_CLICK_WINDOW = 400L;
 
     private final Runnable clickResolver = new Runnable() {
         @Override
@@ -78,13 +78,13 @@ public class FloatingService extends Service {
     private void createNotification() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    "arc_channel", "圆弧悬浮窗", NotificationManager.IMPORTANCE_LOW);
+                    "arc_channel", "抛物线悬浮窗", NotificationManager.IMPORTANCE_LOW);
             channel.setShowBadge(false);
             NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm != null) nm.createNotificationChannel(channel);
         }
         Notification n = new NotificationCompat.Builder(this, "arc_channel")
-                .setContentTitle("圆弧悬浮窗运行中")
+                .setContentTitle("抛物线悬浮窗运行中")
                 .setContentText("点击锁按钮可穿透操作")
                 .setSmallIcon(R.drawable.ic_lock_closed)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -117,10 +117,31 @@ public class FloatingService extends Service {
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("image/*");
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(Intent.createChooser(intent, "选择图片"));
+                try {
+                    startActivity(Intent.createChooser(intent, "选择图片"));
+                } catch (Exception ignored) {}
                 return true;
             }
         });
+
+        // JS 桥：悬浮窗里点「载入图片」时，关闭悬浮窗并把主界面拉到前台
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void requestLoadImage() {
+                lockHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Intent intent = new Intent(FloatingService.this, MainActivity.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                            startActivity(intent);
+                        } catch (Exception ignored) {}
+                        stopSelf();
+                    }
+                });
+            }
+        }, "AndroidBridge");
 
         webView.loadUrl("file:///android_asset/index.html?mode=floating");
 
@@ -206,7 +227,6 @@ public class FloatingService extends Service {
         wm.addView(lockButton, lockParams);
     }
 
-    // 点击分发：1~2 次 → 切换锁定；3 次 → 关闭悬浮窗
     private void onLockClick() {
         long now = System.currentTimeMillis();
 
