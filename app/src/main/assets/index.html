@@ -172,9 +172,8 @@
   var OFFSET_MIN = 0;
   var OFFSET_MAX = 300;
 
-  var WHITE_THRESHOLD = 200;
+  var WHITE_THRESHOLD = 230;   // ← 改：200 → 230
 
-  // 箭头尺寸筛选
   var ARROW_MIN_W = 8,  ARROW_MAX_W = 30;
   var ARROW_MIN_H = 10, ARROW_MAX_H = 35;
 
@@ -187,7 +186,6 @@
   var lastSnapCenter = null;
   var bgImage = null;
 
-  // 上一次识别的结果（用于画诊断框）
   var lastDetection = null;
 
   var cv = document.getElementById('c');
@@ -302,8 +300,8 @@
     return { a: a, b: b, c: c };
   }
 
+  // 主界面和悬浮窗都显示背景图（调试用）
   function drawBackgroundImage() {
-    if (isFloating) return;
     if (!bgImage) return;
 
     var iw = bgImage.naturalWidth || bgImage.width;
@@ -331,7 +329,6 @@
 
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i];
-      // 太小的不画（避免噪点乱屏）
       if (g.w < 3 || g.h < 3) continue;
 
       var bx = toScreenX(g.x0);
@@ -395,7 +392,6 @@
     drawDot(startX, startY, '#FF0000');
     drawDot(endX, endY, '#0000FF');
 
-    // 诊断框：画在最上层
     drawDetectionBoxes();
   }
 
@@ -588,11 +584,10 @@
       return { ok: false, reason: 'draw-fail', groups: [] };
     }
 
-    // 搜索区域：左半边
     var sx0 = 0;
     var sy0 = 0;
-    var sx1 = Math.floor(CANVAS_W / 2);   // 1000
-    var sy1 = CANVAS_H;                    // 1200
+    var sx1 = Math.floor(CANVAS_W / 2);
+    var sy1 = CANVAS_H;
     var w = sx1 - sx0;
     var h = sy1 - sy0;
 
@@ -606,7 +601,7 @@
     function isWhite(idx) {
       var o = idx * 4;
       return data[o + 3] >= 200 &&
-             data[o] >= WHITE_THRESHOLD &&
+             data[o]     >= WHITE_THRESHOLD &&
              data[o + 1] >= WHITE_THRESHOLD &&
              data[o + 2] >= WHITE_THRESHOLD;
     }
@@ -694,6 +689,9 @@
   }
 
   function processImage(img) {
+    // 主界面和悬浮窗都存背景图（调试用）
+    bgImage = img;
+
     var res = findArrowCenter(img);
     lastDetection = res;
 
@@ -745,7 +743,6 @@
     var img = new Image();
 
     img.onload = function () {
-      if (!isFloating) bgImage = img;
       URL.revokeObjectURL(url);
       processImage(img);
     };
