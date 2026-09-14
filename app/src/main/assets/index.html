@@ -172,10 +172,16 @@
   var OFFSET_MIN = 0;
   var OFFSET_MAX = 300;
 
-  var WHITE_THRESHOLD = 230;   // ← 改：200 → 230
+  var WHITE_THRESHOLD = 230;
 
   var ARROW_MIN_W = 8,  ARROW_MAX_W = 30;
   var ARROW_MIN_H = 10, ARROW_MAX_H = 35;
+
+  // 搜索区域：左下角 1/4
+  var SEARCH_X0 = 0;
+  var SEARCH_Y0 = Math.floor(CANVAS_H / 2);   // 600
+  var SEARCH_X1 = Math.floor(CANVAS_W / 2);   // 1000
+  var SEARCH_Y1 = CANVAS_H;                    // 1200
 
   var kInt = K_DEFAULT;
   var offset = OFFSET_DEFAULT;
@@ -300,8 +306,9 @@
     return { a: a, b: b, c: c };
   }
 
-  // 主界面和悬浮窗都显示背景图（调试用）
+  // 背景图：只在主界面显示
   function drawBackgroundImage() {
+    if (isFloating) return;
     if (!bgImage) return;
 
     var iw = bgImage.naturalWidth || bgImage.width;
@@ -322,7 +329,9 @@
     ctx.drawImage(bgImage, dx, dy, dw, dh);
   }
 
+  // 诊断框：只在主界面显示
   function drawDetectionBoxes() {
+    if (isFloating) return;
     if (!lastDetection || !lastDetection.groups) return;
     var groups = lastDetection.groups;
     var sel = lastDetection.selected;
@@ -570,7 +579,7 @@
     }
   }
 
-  // ============ 箭头识别：搜索整个左半边 ============
+  // ============ 箭头识别：只搜左下角 1/4 ============
   function findArrowCenter(img) {
     var off = document.createElement('canvas');
     off.width = CANVAS_W;
@@ -584,10 +593,10 @@
       return { ok: false, reason: 'draw-fail', groups: [] };
     }
 
-    var sx0 = 0;
-    var sy0 = 0;
-    var sx1 = Math.floor(CANVAS_W / 2);
-    var sy1 = CANVAS_H;
+    var sx0 = SEARCH_X0;
+    var sy0 = SEARCH_Y0;
+    var sx1 = SEARCH_X1;
+    var sy1 = SEARCH_Y1;
     var w = sx1 - sx0;
     var h = sy1 - sy0;
 
@@ -689,8 +698,10 @@
   }
 
   function processImage(img) {
-    // 主界面和悬浮窗都存背景图（调试用）
-    bgImage = img;
+    // 背景图只在主界面保存
+    if (!isFloating) {
+      bgImage = img;
+    }
 
     var res = findArrowCenter(img);
     lastDetection = res;
@@ -707,7 +718,7 @@
     } else if (res.reason === 'read-fail') {
       showHint('图片像素读取失败（' + res.msg + '）', true);
     } else if (res.reason === 'no-arrow') {
-      showHint('左半边白团 ' + res.groups.length + ' 个，无符合尺寸的', true);
+      showHint('左下角白团 ' + res.groups.length + ' 个，无符合尺寸的', true);
     } else {
       showHint('未知失败', true);
     }
