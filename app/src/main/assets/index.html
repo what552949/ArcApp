@@ -159,8 +159,6 @@
   'use strict';
 
   var isFloating = (new URLSearchParams(location.search).get('mode') === 'floating');
-
-  // 一套系统：主界面和悬浮窗共用同一份数据
   var STORAGE_PREFIX = 'arcapp_';
 
   var CANVAS_W = 2000;
@@ -168,7 +166,7 @@
 
   var K_UNIT = 100000;
   var K_DEFAULT = 25;   // 0.00025
-  var K_MIN = 1;        // 0.00001
+  var K_MIN = 1;
 
   var OFFSET_DEFAULT = 40;
   var OFFSET_MIN = 0;
@@ -177,6 +175,10 @@
   var SEARCH_RADIUS = 100;
   var WHITE_THRESHOLD = 200;
 
+  // 箭头尺寸筛选（按你给的实测值留了余量）
+  var ARROW_MIN_W = 10, ARROW_MAX_W = 30;
+  var ARROW_MIN_H = 14, ARROW_MAX_H = 35;
+
   var kInt = K_DEFAULT;
   var offset = OFFSET_DEFAULT;
 
@@ -184,8 +186,6 @@
   var endX = 1400, endY = 700;
 
   var lastSnapCenter = null;
-
-  // 背景图（仅主界面显示，不存本地）
   var bgImage = null;
 
   var cv = document.getElementById('c');
@@ -543,7 +543,13 @@
     }
   }
 
-  function findWhiteCenter(img, cx, cy, radius) {
+  // ============ 箭头识别（连通区域 + 尺寸筛选） ============
+  // 返回：
+  //   { ok:true, center:{x,y}, groupCount:N }
+  //   { ok:false, reason:'draw-fail' }
+  //   { ok:false, reason:'read-fail', msg }
+  //   { ok:false, reason:'no-arrow', groupCount:N, whiteGroups:N }
+  function findArrowCenter(img, cx, cy, radius) {
     var off = document.createElement('canvas');
     off.width = CANVAS_W;
     off.height = CANVAS_H;
@@ -562,7 +568,7 @@
     var y1 = Math.min(CANVAS_H - 1, Math.ceil(cy + radius));
     var w = x1 - x0 + 1;
     var h = y1 - y0 + 1;
-    if (w <= 0 || h <= 0) return { ok: false, reason: 'no-white' };
+    if (w <= 0 || h <= 0) return { ok: false, reason: 'no-arrow', groupCount: 0, whiteGroups: 0 };
 
     var data;
     try {
@@ -571,23 +577,105 @@
       return { ok: false, reason: 'read-fail', msg: (e && (e.name || e.message)) || 'unknown' };
     }
 
-    var sumX = 0, sumY = 0, count = 0;
+    function isWhite(idx) {
+      var o = idx * 4;
+      return data[o + 3] >= 200 &&
+             data[o] >= WHITE_THRESHOLD &&
+             data[o + 1] >= WHITE_THRESHOLD &&
+             data[o + 2] >= WHITE_THRESHOLD;
+    }
+
+    var visited = new Uint8Array(w * h);
+    var groups = [];
+    var whiteGroups = 0;
+
     for (var j = 0; j < h; j++) {
       for (var i = 0; i < w; i++) {
-        var idx = (j * w + i) * 4;
-        var r = data[idx];
-        var g = data[idx + 1];
-        var b = data[idx + 2];
-        var a = data[idx + 3];
-        if (a >= 200 && r >= WHITE_THRESHOLD && g >= WHITE_THRESHOLD && b >= WHITE_THRESHOLD) {
-          sumX += (x0 + i);
-          sumY += (y0 + j);
+        var p = j * w + i;
+        if (visited[p]) continue;
+        visited[p] = 1;
+        if (!isWhite(p)) continue;
+
+        whiteGroups++;
+
+        var stack = [p];
+        var minX = i, maxX = i, minY = j, maxY = j;
+        var sumX = 0, sumY = 0, count = 0;
+
+        while (stack.length) {
+          var q = stack.pop();
+          var qi = q % w;
+          var qj = (q - qi) / w;
+
+          sumX += qi;
+          sumY += qj;
           count++;
+          if (qi < minX) minX = qi;
+          if (qi > maxX) maxX = qi;
+          if (qj < minY) minY = qj;
+          if (qj > maxY) maxY = qj;
+
+          if (qi > 0) {
+            var n1 = q - 1;
+            if (!visited[n1] && isWhite(n1)) { visited[n1] = 1; stack.push(n1); }
+          }
+          if (qi < w - 1) {
+            var n2 = q + 1;
+            if (!visited[n2] && isWhite(n2)) { visited[n2] = 1; stack.push(n2); }
+          }
+          if (qj > 0) {
+            var n3 = q - w;
+            if (!visited[n3] && isWhite(n3)) { visited[n3] = 1; stack.push(n3); }
+          }
+          if (qj < h - 1) {
+            var n4 = q + w;
+            if (!visited[n4] && isWhite(n4)) { visited[n4] = 1; stack.push(n4); }
+          }
         }
+
+        groups.push({
+          minX: minX, maxX: maxX, minY: minY, maxY: maxY,
+          sumX: sumX, sumY: sumY, count: count
+        });
       }
     }
-    if (count === 0) return { ok: false, reason: 'no-white' };
-    return { ok: true, center: { x: sumX / count, y: sumY / count } };
+
+    if (groups.length === 0) {
+      return { ok: false, reason: 'no-arrow', groupCount: 0, whiteGroups: whiteGroups };
+    }
+
+    // 尺寸筛选
+    var candidates = [];
+    for (var k2 = 0; k2 < groups.length; k2++) {
+      var g = groups[k2];
+      var gw = g.maxX - g.minX + 1;
+      var gh = g.maxY - g.minY + 1;
+      if (gw >= ARROW_MIN_W && gw <= ARROW_MAX_W &&
+          gh >= ARROW_MIN_H && gh <= ARROW_MAX_H) {
+        candidates.push(g);
+      }
+    }
+
+    if (candidates.length === 0) {
+      return { ok: false, reason: 'no-arrow', groupCount: groups.length, whiteGroups: whiteGroups };
+    }
+
+    // 选离起点最近的合格团
+    var sLocalX = cx - x0;
+    var sLocalY = cy - y0;
+    var best = null, bestDist = Infinity;
+    for (var k3 = 0; k3 < candidates.length; k3++) {
+      var c = candidates[k3];
+      var gcx = c.sumX / c.count;
+      var gcy = c.sumY / c.count;
+      var dd = Math.sqrt((gcx - sLocalX) * (gcx - sLocalX) + (gcy - sLocalY) * (gcy - sLocalY));
+      if (dd < bestDist) {
+        bestDist = dd;
+        best = { x: x0 + gcx, y: y0 + gcy };
+      }
+    }
+
+    return { ok: true, center: best, groupCount: groups.length };
   }
 
   function applySnapFromCenter() {
@@ -597,7 +685,6 @@
     saveStored();
   }
 
-  // 载入图片按钮：主界面走文件选择，悬浮窗走原生桥
   document.getElementById('bLoad').addEventListener('click', function () {
     if (isFloating) {
       if (window.AndroidBridge && window.AndroidBridge.requestLoadImage) {
@@ -624,22 +711,22 @@
         bgImage = img;
       }
 
-      var res = findWhiteCenter(img, startX, startY, SEARCH_RADIUS);
+      var res = findArrowCenter(img, startX, startY, SEARCH_RADIUS);
       URL.revokeObjectURL(url);
 
       if (res.ok) {
         lastSnapCenter = res.center;
         applySnapFromCenter();
-        showHint('已吸附 · 图 ' + w0 + '×' + h0, true);
+        showHint('已吸附 · 候选团 ' + res.groupCount, true);
         return;
       }
 
       if (res.reason === 'draw-fail') {
-        showHint('图片绘制失败 · 图 ' + w0 + '×' + h0, true);
+        showHint('图片绘制失败', true);
       } else if (res.reason === 'read-fail') {
         showHint('图片像素读取失败（' + res.msg + '）', true);
-      } else if (res.reason === 'no-white') {
-        showHint('没找到白色 · 搜索半径 ' + SEARCH_RADIUS + 'px · 图 ' + w0 + '×' + h0, true);
+      } else if (res.reason === 'no-arrow') {
+        showHint('白团 ' + (res.whiteGroups || 0) + ' 个，无符合尺寸的箭头', true);
       } else {
         showHint('未知失败', true);
       }
@@ -673,7 +760,6 @@
     });
   }
 
-  // 从后台切回前台时，重新读取共享数据（防止另一界面改过）
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) {
       loadStored();
