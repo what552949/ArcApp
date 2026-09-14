@@ -786,24 +786,49 @@
     });
   }
 
+  // ============ 渲染循环（可暂停） ============
+  var rafId = null;
+
+  function tick() {
+    render();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function pauseRender() {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  }
+
+  function resumeRender() {
+    if (rafId === null) {
+      rafId = requestAnimationFrame(tick);
+    }
+  }
+
+  // 供原生调用：主界面切后台时停渲染
+  window.__pauseRender = pauseRender;
+  window.__resumeRender = resumeRender;
+
+  // 页面可见性变化时，自动停/启渲染
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) {
+    if (document.hidden) {
+      pauseRender();
+    } else {
       loadStored();
       updateKDisplay();
       updateOffsetDisplay();
+      resumeRender();
     }
   });
 
+  // 启动
   loadStored();
   resize();
   updateKDisplay();
   updateOffsetDisplay();
-
-  function tick() {
-    render();
-    requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
+  resumeRender();
 
 })();
 </script>
