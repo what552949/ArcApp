@@ -1,11 +1,18 @@
 package com.example.arcapp;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
@@ -14,6 +21,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -25,9 +34,13 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 public class FloatingService extends Service {
 
@@ -124,20 +137,14 @@ public class FloatingService extends Service {
             }
         });
 
-        // JS 桥：悬浮窗里点「载入图片」时，关闭悬浮窗并把主界面拉到前台
+        // JS 桥：悬浮窗里点「载入图片」，自动读取相册最新一张图
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface
             public void requestLoadImage() {
                 lockHandler.post(new Runnable() {
                     @Override
                     public void run() {
-                        try {
-                            Intent intent = new Intent(FloatingService.this, MainActivity.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                                    | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                            startActivity(intent);
-                        } catch (Exception ignored) {}
-                        stopSelf();
+                        loadLatestImageFromGallery();
                     }
                 });
             }
@@ -156,6 +163,119 @@ public class FloatingService extends Service {
         webParams.gravity = Gravity.TOP | Gravity.START;
 
         wm.addView(webView, webParams);
+    }
+
+    private boolean hasMediaPermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES)
+                    == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED;
+        }
+    }
+
+    private void notifyJsError(String msg) {
+        if (webView == null) return;
+        final String safe = msg.replace("'", "\\'").replace("\n", " ");
+        webView.post(new Runnable() {
+            @Override
+            public void run() {
+                webView.evaluateJavascript(
+                        "window.__onImageError && window.__onImageError('" + safe + "');", null);
+            }
+        });
+    }
+
+    private void loadLatestImageFromGallery() {
+        if (!hasMediaPermission()) {
+            notifyJsError("请先打开 App，授予相册权限");
+            return;
+        }
+
+        try {
+            Uri collection;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL);
+            } else {
+                collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+            }
+
+            String[] projection = new String[]{ MediaStore.Images.Media._ID };
+
+            ContentResolver cr = getContentResolver();
+            Cursor cursor = cr.query(
+                    collection,
+                    projection,
+                    null,
+                    null,
+                    MediaStore.Images.Media.DATE_ADDED + " DESC"
+            );
+
+            if (cursor == null || !cursor.moveToFirst()) {
+                if (cursor != null) cursor.close();
+                notifyJsError("没读到最新截图");
+                return;
+            }
+
+            long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID));
+            cursor.close();
+
+            Uri imageUri = ContentUris.withAppendedId(collection, id);
+
+            // 先看尺寸
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            InputStream is1 = cr.openInputStream(imageUri);
+            BitmapFactory.decodeStream(is1, null, bounds);
+            if (is1 != null) is1.close();
+
+            int w0 = bounds.outWidth;
+            int h0 = bounds.outHeight;
+            if (w0 <= 0 || h0 <= 0) {
+                notifyJsError("图片解码失败");
+                return;
+            }
+
+            // 采样率：让解码后宽度不超过 2000
+            int sampleSize = 1;
+            while (w0 / sampleSize > 2000) {
+                sampleSize *= 2;
+            }
+
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sampleSize;
+            InputStream is2 = cr.openInputStream(imageUri);
+            Bitmap bmp = BitmapFactory.decodeStream(is2, null, opts);
+            if (is2 != null) is2.close();
+
+            if (bmp == null) {
+                notifyJsError("图片解码失败");
+                return;
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bmp.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+            bmp.recycle();
+            byte[] bytes = baos.toByteArray();
+            baos.close();
+
+            String base64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
+            final String dataUri = "data:image/jpeg;base64," + base64;
+
+            if (webView == null) return;
+            webView.post(new Runnable() {
+                @Override
+                public void run() {
+                    webView.evaluateJavascript(
+                            "window.__onImageLoaded && window.__onImageLoaded('" + dataUri + "');",
+                            null);
+                }
+            });
+
+        } catch (Exception e) {
+            notifyJsError("读取失败：" + e.getClass().getSimpleName());
+        }
     }
 
     private void createLockButton() {
