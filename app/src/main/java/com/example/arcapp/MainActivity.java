@@ -31,7 +31,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // 首次启动时申请相册权限
         requestMediaPermissionIfNeeded();
 
         webView = findViewById(R.id.webView);
@@ -68,6 +67,29 @@ public class MainActivity extends AppCompatActivity {
         }, "AndroidBridge");
 
         webView.loadUrl("file:///android_asset/index.html?mode=main");
+    }
+
+    // ↓↓↓ 新增：主界面退到后台时，暂停 WebView 渲染与 JS ↓↓↓
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (webView != null) {
+            webView.onPause();
+            // 通知 JS 停掉渲染循环
+            webView.evaluateJavascript(
+                    "window.__pauseRender && window.__pauseRender();", null);
+        }
+    }
+
+    // ↓↓↓ 新增：主界面回到前台时，恢复 WebView ↓↓↓
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (webView != null) {
+            webView.onResume();
+            webView.evaluateJavascript(
+                    "window.__resumeRender && window.__resumeRender();", null);
+        }
     }
 
     private void requestMediaPermissionIfNeeded() {
@@ -107,6 +129,12 @@ public class MainActivity extends AppCompatActivity {
             startService(intent);
         }
         Toast.makeText(this, "悬浮窗已启动", Toast.LENGTH_SHORT).show();
+
+        // 主动停掉主界面的渲染循环，再退到后台
+        if (webView != null) {
+            webView.evaluateJavascript(
+                    "window.__pauseRender && window.__pauseRender();", null);
+        }
         moveTaskToBack(true);
     }
 
