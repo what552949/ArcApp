@@ -175,9 +175,9 @@
   var SEARCH_RADIUS = 100;
   var WHITE_THRESHOLD = 200;
 
-  // 箭头尺寸筛选（按你给的实测值留了余量）
-  var ARROW_MIN_W = 10, ARROW_MAX_W = 30;
-  var ARROW_MIN_H = 14, ARROW_MAX_H = 35;
+  // 箭头尺寸筛选（放宽下限）
+  var ARROW_MIN_W = 8,  ARROW_MAX_W = 30;
+  var ARROW_MIN_H = 10, ARROW_MAX_H = 35;
 
   var kInt = K_DEFAULT;
   var offset = OFFSET_DEFAULT;
@@ -348,7 +348,7 @@
       ctx.shadowColor = 'rgba(126,231,135,0.9)';
       ctx.shadowBlur = 12;
       ctx.strokeStyle = '#7ee787';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 1.5;   // ← 改：3 → 1.5
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.stroke();
@@ -383,7 +383,7 @@
     var sx = toScreenX(lx);
     var sy = toScreenY(ly);
     ctx.beginPath();
-    ctx.arc(sx, sy, 2.5, 0, Math.PI * 2);
+    ctx.arc(sx, sy, 2, 0, Math.PI * 2);   // ← 改：2.5 → 2
     ctx.fillStyle = color;
     ctx.fill();
   }
@@ -543,12 +543,6 @@
     }
   }
 
-  // ============ 箭头识别（连通区域 + 尺寸筛选） ============
-  // 返回：
-  //   { ok:true, center:{x,y}, groupCount:N }
-  //   { ok:false, reason:'draw-fail' }
-  //   { ok:false, reason:'read-fail', msg }
-  //   { ok:false, reason:'no-arrow', groupCount:N, whiteGroups:N }
   function findArrowCenter(img, cx, cy, radius) {
     var off = document.createElement('canvas');
     off.width = CANVAS_W;
@@ -644,7 +638,6 @@
       return { ok: false, reason: 'no-arrow', groupCount: 0, whiteGroups: whiteGroups };
     }
 
-    // 尺寸筛选
     var candidates = [];
     for (var k2 = 0; k2 < groups.length; k2++) {
       var g = groups[k2];
@@ -660,7 +653,6 @@
       return { ok: false, reason: 'no-arrow', groupCount: groups.length, whiteGroups: whiteGroups };
     }
 
-    // 选离起点最近的合格团
     var sLocalX = cx - x0;
     var sLocalY = cy - y0;
     var best = null, bestDist = Infinity;
@@ -685,12 +677,50 @@
     saveStored();
   }
 
+  // 处理一张加载好的图片（主界面文件、悬浮窗从相册读的都走这里）
+  function processImage(img) {
+    var res = findArrowCenter(img, startX, startY, SEARCH_RADIUS);
+    if (res.ok) {
+      lastSnapCenter = res.center;
+      applySnapFromCenter();
+      showHint('已吸附 · 候选团 ' + res.groupCount, true);
+      return;
+    }
+    if (res.reason === 'draw-fail') {
+      showHint('图片绘制失败', true);
+    } else if (res.reason === 'read-fail') {
+      showHint('图片像素读取失败（' + res.msg + '）', true);
+    } else if (res.reason === 'no-arrow') {
+      showHint('白团 ' + (res.whiteGroups || 0) + ' 个，无符合尺寸的箭头', true);
+    } else {
+      showHint('未知失败', true);
+    }
+  }
+
+  // 悬浮窗通过原生桥拿到相册最新图 → 这里接收
+  window.__onImageLoaded = function (dataUri) {
+    var img = new Image();
+    img.onload = function () {
+      processImage(img);
+    };
+    img.onerror = function () {
+      showHint('图片载入失败', true);
+    };
+    img.src = dataUri;
+  };
+
+  // 悬浮窗通过原生桥拿图失败 → 这里接收
+  window.__onImageError = function (msg) {
+    showHint(msg || '读取失败', true);
+  };
+
+  // 按钮：主界面走文件选择器，悬浮窗走原生桥
   document.getElementById('bLoad').addEventListener('click', function () {
     if (isFloating) {
       if (window.AndroidBridge && window.AndroidBridge.requestLoadImage) {
         window.AndroidBridge.requestLoadImage();
       } else {
-        alert('请在安卓 App 内使用此功能');
+        showHint('请在安卓 App 内使用此功能', true);
       }
     } else {
       fileInput.click();
@@ -704,32 +734,11 @@
     var img = new Image();
 
     img.onload = function () {
-      var w0 = img.naturalWidth || img.width;
-      var h0 = img.naturalHeight || img.height;
-
       if (!isFloating) {
         bgImage = img;
       }
-
-      var res = findArrowCenter(img, startX, startY, SEARCH_RADIUS);
       URL.revokeObjectURL(url);
-
-      if (res.ok) {
-        lastSnapCenter = res.center;
-        applySnapFromCenter();
-        showHint('已吸附 · 候选团 ' + res.groupCount, true);
-        return;
-      }
-
-      if (res.reason === 'draw-fail') {
-        showHint('图片绘制失败', true);
-      } else if (res.reason === 'read-fail') {
-        showHint('图片像素读取失败（' + res.msg + '）', true);
-      } else if (res.reason === 'no-arrow') {
-        showHint('白团 ' + (res.whiteGroups || 0) + ' 个，无符合尺寸的箭头', true);
-      } else {
-        showHint('未知失败', true);
-      }
+      processImage(img);
     };
 
     img.onerror = function () {
