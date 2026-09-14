@@ -1,6 +1,8 @@
 package com.example.arcapp;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -22,11 +24,15 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> filePathCallback;
     private static final int FILE_CHOOSER_REQUEST = 2001;
     private static final int OVERLAY_PERMISSION_REQUEST = 2002;
+    private static final int MEDIA_PERMISSION_REQUEST = 2003;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // 首次启动时申请相册权限
+        requestMediaPermissionIfNeeded();
 
         webView = findViewById(R.id.webView);
 
@@ -62,6 +68,22 @@ public class MainActivity extends AppCompatActivity {
         }, "AndroidBridge");
 
         webView.loadUrl("file:///android_asset/index.html?mode=main");
+    }
+
+    private void requestMediaPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES},
+                        MEDIA_PERMISSION_REQUEST);
+            }
+        } else if (Build.VERSION.SDK_INT >= 23) {
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                        MEDIA_PERMISSION_REQUEST);
+            }
+        }
     }
 
     private void checkAndStartFloating() {
