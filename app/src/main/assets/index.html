@@ -54,6 +54,8 @@
     color:#7ee787;font-family:inherit;font-size:12px;
     cursor:pointer;outline:none}
   .k-val:hover{border-color:#30363d}
+  .k-val.static{cursor:default}
+  .k-val.static:hover{border-color:transparent}
 
   .btns{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
   .btns button{flex:1;background:#21262d;color:#c9d1d9;border:1px solid #30363d;
@@ -123,6 +125,14 @@
     <div class="btns">
       <button id="bReset">恢复默认</button>
     </div>
+    <div class="kRow" style="margin-top:8px">
+      <span></span>
+      <span class="kCtrl">
+        <button class="k-btn" id="bOMinus2">−</button>
+        <span class="k-val static" id="vO2">0</span>
+        <button class="k-btn" id="bOPlus2">+</button>
+      </span>
+    </div>
     <div class="btns main-only">
       <button id="bFloating">启动悬浮窗</button>
     </div>
@@ -172,6 +182,9 @@
   var OFFSET_MIN = 0;
   var OFFSET_MAX = 300;
 
+  var OFFSET2_DEFAULT = 0;
+  var OFFSET2_STEP = 2;
+
   var WHITE_THRESHOLD = 230;
 
   var ARROW_MIN_W = 8,  ARROW_MAX_W = 30;
@@ -185,6 +198,7 @@
 
   var kInt = K_DEFAULT;
   var offset = OFFSET_DEFAULT;
+  var offset2 = OFFSET2_DEFAULT;
 
   var startX = 600, startY = 500;
   var endX = 1400, endY = 700;
@@ -207,6 +221,9 @@
   var vO = document.getElementById('vO');
   var bOPlus = document.getElementById('bOPlus');
   var bOMinus = document.getElementById('bOMinus');
+  var vO2 = document.getElementById('vO2');
+  var bOPlus2 = document.getElementById('bOPlus2');
+  var bOMinus2 = document.getElementById('bOMinus2');
   var numPad = document.getElementById('numPad');
   var npDisplay = document.getElementById('npDisplay');
   var hintEl = document.getElementById('hint');
@@ -229,6 +246,9 @@
       var o = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset'), 10);
       if (!isNaN(o)) offset = Math.max(OFFSET_MIN, Math.min(OFFSET_MAX, o));
 
+      var o2 = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2'), 10);
+      if (!isNaN(o2)) offset2 = o2;
+
       var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
       var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
       var ex = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endX'));
@@ -244,6 +264,7 @@
     try {
       localStorage.setItem(STORAGE_PREFIX + 'kInt', String(kInt));
       localStorage.setItem(STORAGE_PREFIX + 'offset', String(offset));
+      localStorage.setItem(STORAGE_PREFIX + 'offset2', String(offset2));
       localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
       localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
       localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
@@ -287,6 +308,17 @@
     vO.textContent = String(offset);
   }
 
+  function setOffset2(newO) {
+    newO = Math.round(newO);
+    if (newO === offset2) return;
+    offset2 = newO;
+    updateOffset2Display();
+    saveStored();
+  }
+  function updateOffset2Display() {
+    vO2.textContent = String(offset2);
+  }
+
   function calcParabola(x0, y0, x1, y1, K) {
     var d = x1 - x0;
     var h = y1 - y0;
@@ -306,7 +338,6 @@
     return { a: a, b: b, c: c };
   }
 
-  // 背景图：只在主界面显示
   function drawBackgroundImage() {
     if (isFloating) return;
     if (!bgImage) return;
@@ -329,7 +360,6 @@
     ctx.drawImage(bgImage, dx, dy, dw, dh);
   }
 
-  // 诊断框：只在主界面显示
   function drawDetectionBoxes() {
     if (isFloating) return;
     if (!lastDetection || !lastDetection.groups) return;
@@ -365,6 +395,7 @@
     var p = calcParabola(startX, startY, endX, endY, K);
 
     if (p) {
+      // ===== 第一条线（绿色）：起点 → 终点 =====
       var xs = Math.min(startX, endX);
       var xe = Math.max(startX, endX);
       var span = xe - xs;
@@ -387,6 +418,52 @@
       ctx.lineCap = 'round';
       ctx.stroke();
       ctx.restore();
+
+      // ===== 第二条线（浅绿 #b9f6ca）：起点 → 屏幕边缘 =====
+      var dirSign = (endX >= startX) ? 1 : -1;
+      var x50 = (startX + endX) / 2;
+      var tTotal = Math.abs(endX - x50);
+
+      ctx.beginPath();
+      var started = false;
+      var drawEndX = dirSign > 0 ? CANVAS_W : 0;
+
+      for (var lx2 = startX;
+           dirSign > 0 ? lx2 <= drawEndX : lx2 >= drawEndX;
+           lx2 += dirSign) {
+
+        var y1 = p.a * lx2 * lx2 + p.b * lx2 + p.c;
+        var y2;
+
+        // 判断是否在 50% 之前
+        var inFirstHalf = (dirSign > 0) ? (lx2 <= x50) : (lx2 >= x50);
+
+        if (inFirstHalf || tTotal < 1e-9) {
+          y2 = y1;
+        } else {
+          var tDist = Math.abs(lx2 - x50);
+          var t = tDist / tTotal;
+          y2 = y1 - offset2 * t * t;
+        }
+
+        if (y2 < 0 || y2 > CANVAS_H) break;
+
+        var sx2 = toScreenX(lx2);
+        var sy2 = toScreenY(y2);
+        if (!started) { ctx.moveTo(sx2, sy2); started = true; }
+        else ctx.lineTo(sx2, sy2);
+      }
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(185,246,202,0.9)';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = '#b9f6ca';
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+
       if (!hintEl.dataset.persist) hintEl.classList.remove('show');
     } else {
       hintEl.textContent = 'K 值过大，请调小数值';
@@ -490,7 +567,7 @@
   };
 
   var holdTimer = null;
-  var HOLD_INTERVAL = 100;
+  var HOLD_INTERVAL = 200;
 
   function startHold(fn) {
     fn();
@@ -511,6 +588,8 @@
   bindHold(bKMinus, function () { setK(kInt - 1); });
   bindHold(bOPlus, function () { setOffset(offset + 1); });
   bindHold(bOMinus, function () { setOffset(offset - 1); });
+  bindHold(bOPlus2, function () { setOffset2(offset2 + OFFSET2_STEP); });
+  bindHold(bOMinus2, function () { setOffset2(offset2 - OFFSET2_STEP); });
 
   var npBuffer = '';
   var activeTarget = null;
@@ -579,7 +658,6 @@
     }
   }
 
-  // ============ 箭头识别：只搜左下角 1/4 ============
   function findArrowCenter(img) {
     var off = document.createElement('canvas');
     off.width = CANVAS_W;
@@ -698,7 +776,6 @@
   }
 
   function processImage(img) {
-    // 背景图只在主界面保存
     if (!isFloating) {
       bgImage = img;
     }
@@ -770,8 +847,10 @@
   document.getElementById('bReset').addEventListener('click', function () {
     kInt = K_DEFAULT;
     offset = OFFSET_DEFAULT;
+    offset2 = OFFSET2_DEFAULT;
     updateKDisplay();
     updateOffsetDisplay();
+    updateOffset2Display();
     saveStored();
   });
 
@@ -786,7 +865,6 @@
     });
   }
 
-  // ============ 渲染循环（可暂停） ============
   var rafId = null;
 
   function tick() {
@@ -807,11 +885,9 @@
     }
   }
 
-  // 供原生调用：主界面切后台时停渲染
   window.__pauseRender = pauseRender;
   window.__resumeRender = resumeRender;
 
-  // 页面可见性变化时，自动停/启渲染
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) {
       pauseRender();
@@ -819,15 +895,16 @@
       loadStored();
       updateKDisplay();
       updateOffsetDisplay();
+      updateOffset2Display();
       resumeRender();
     }
   });
 
-  // 启动
   loadStored();
   resize();
   updateKDisplay();
   updateOffsetDisplay();
+  updateOffset2Display();
   resumeRender();
 
 })();
