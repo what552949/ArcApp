@@ -65,6 +65,34 @@
   .btns button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
   .btns button.primary:hover{background:#388bfd}
 
+  /* ===== 十字方向键面板 ===== */
+  #dpad{
+    position:fixed;top:14px;left:308px;
+    background:rgba(22,27,34,.92);
+    border:1px solid #30363d;border-radius:10px;
+    padding:8px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+    user-select:none;z-index:10;
+    display:none}
+  .dpad-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    grid-template-rows:1fr 1fr 1fr;
+    gap:6px;
+    width:100%;height:100%}
+  .dpad-btn{
+    background:#21262d;border:1px solid #30363d;border-radius:50%;
+    color:#c9d1d9;font-size:18px;line-height:1;cursor:pointer;
+    font-family:inherit;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    min-width:0;min-height:0}
+  .dpad-btn:hover{background:#30363d}
+  .dpad-btn:active{background:#1f6feb;color:#fff}
+  #dpadUp{grid-column:2;grid-row:1}
+  #dpadLeft{grid-column:1;grid-row:2}
+  #dpadRight{grid-column:3;grid-row:2}
+  #dpadDown{grid-column:2;grid-row:3}
+
   #hint{position:fixed;top:20px;left:50%;transform:translateX(-50%);
     background:rgba(248,81,73,.92);color:#fff;
     padding:8px 18px;border-radius:8px;font-size:13px;
@@ -142,6 +170,15 @@
   </div>
 </div>
 
+<div id="dpad">
+  <div class="dpad-grid">
+    <button class="dpad-btn" id="dpadUp" title="上">↑</button>
+    <button class="dpad-btn" id="dpadLeft" title="左">←</button>
+    <button class="dpad-btn" id="dpadRight" title="右">→</button>
+    <button class="dpad-btn" id="dpadDown" title="下">↓</button>
+  </div>
+</div>
+
 <input type="file" id="file" accept="image/*" hidden>
 
 <div id="numPad">
@@ -190,7 +227,6 @@
   var ARROW_MIN_W = 8,  ARROW_MAX_W = 30;
   var ARROW_MIN_H = 10, ARROW_MAX_H = 35;
 
-  // 搜索区域：左下角 1/4
   var SEARCH_X0 = 0;
   var SEARCH_Y0 = Math.floor(CANVAS_H / 2);   // 600
   var SEARCH_X1 = Math.floor(CANVAS_W / 2);   // 1000
@@ -214,6 +250,7 @@
   var scale = 1, offsetX = 0, offsetY = 0;
 
   var panel = document.getElementById('panel');
+  var dpad = document.getElementById('dpad');
   var bToggle = document.getElementById('bToggle');
   var vK = document.getElementById('vK');
   var bKPlus = document.getElementById('bKPlus');
@@ -435,7 +472,6 @@
         var y1 = p.a * lx2 * lx2 + p.b * lx2 + p.c;
         var y2;
 
-        // 判断是否在 50% 之前
         var inFirstHalf = (dirSign > 0) ? (lx2 <= x50) : (lx2 >= x50);
 
         if (inFirstHalf || tTotal < 1e-9) {
@@ -514,6 +550,22 @@
   }
   window.addEventListener('resize', resize);
 
+  // ===== 十字方向键面板尺寸同步 =====
+  function syncDpadSize() {
+    if (panel.classList.contains('collapsed')) {
+      dpad.style.display = 'none';
+      return;
+    }
+    dpad.style.display = 'block';
+    var rect = panel.getBoundingClientRect();
+    var h = rect.height;
+    dpad.style.left = (rect.right + 14) + 'px';
+    dpad.style.top = rect.top + 'px';
+    dpad.style.width = h + 'px';
+    dpad.style.height = h + 'px';
+  }
+  window.addEventListener('resize', syncDpadSize);
+
   var drag = null;
   var TOUCH_THRESHOLD = 30;
 
@@ -553,6 +605,7 @@
   bToggle.addEventListener('click', function () {
     var collapsed = panel.classList.toggle('collapsed');
     bToggle.textContent = collapsed ? '▼' : '■';
+    syncDpadSize();
   });
 
   window.__setPanelCollapsed = function (c) {
@@ -564,6 +617,7 @@
       panel.classList.remove('collapsed');
       bToggle.textContent = '■';
     }
+    syncDpadSize();
   };
 
   var holdTimer = null;
@@ -590,6 +644,17 @@
   bindHold(bOMinus, function () { setOffset(offset - 1); });
   bindHold(bOPlus2, function () { setOffset2(offset2 + OFFSET2_STEP); });
   bindHold(bOMinus2, function () { setOffset2(offset2 - OFFSET2_STEP); });
+
+  // ===== 十字方向键：微调起点 =====
+  function nudgeStart(dx, dy) {
+    startX += dx;
+    startY += dy;
+    saveStored();
+  }
+  bindHold(document.getElementById('dpadUp'),    function () { nudgeStart(0, -1); });
+  bindHold(document.getElementById('dpadDown'),  function () { nudgeStart(0, 1); });
+  bindHold(document.getElementById('dpadLeft'),  function () { nudgeStart(-1, 0); });
+  bindHold(document.getElementById('dpadRight'), function () { nudgeStart(1, 0); });
 
   var npBuffer = '';
   var activeTarget = null;
@@ -896,6 +961,7 @@
       updateKDisplay();
       updateOffsetDisplay();
       updateOffset2Display();
+      syncDpadSize();
       resumeRender();
     }
   });
@@ -906,6 +972,9 @@
   updateOffsetDisplay();
   updateOffset2Display();
   resumeRender();
+
+  // 等布局完成后同步方向键面板尺寸
+  setTimeout(syncDpadSize, 0);
 
 })();
 </script>
