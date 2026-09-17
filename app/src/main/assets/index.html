@@ -65,14 +65,18 @@
   .btns button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
   .btns button.primary:hover{background:#388bfd}
 
-  /* ===== 十字方向键面板 ===== */
-  #dpad{
+  /* ===== 右侧列：方向键 + 滑动条 ===== */
+  #rightCol{
     position:fixed;top:14px;left:308px;
+    display:flex;flex-direction:column;gap:8px;
+    z-index:10}
+
+  #dpad{
     background:rgba(22,27,34,.92);
     border:1px solid #30363d;border-radius:10px;
     padding:8px;
     box-shadow:0 8px 24px rgba(0,0,0,.45);
-    user-select:none;z-index:10;
+    user-select:none;
     display:none}
   .dpad-grid{
     display:grid;
@@ -92,6 +96,30 @@
   #dpadLeft{grid-column:1;grid-row:2}
   #dpadRight{grid-column:3;grid-row:2}
   #dpadDown{grid-column:2;grid-row:3}
+
+  #sliderWrap{
+    background:rgba(22,27,34,.92);
+    border:1px solid #30363d;border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.45);
+    padding:0 10px;
+    display:none;
+    align-items:center;
+    gap:8px;
+    height:40px;
+    user-select:none}
+  #sliderLabel{
+    color:#7ee787;font-size:12px;font-family:inherit;
+    flex:0 0 auto;min-width:34px;text-align:left}
+  #sliderTrack{
+    flex:1 1 auto;
+    height:6px;background:#30363d;border-radius:3px;
+    position:relative;cursor:pointer;touch-action:none}
+  #sliderThumb{
+    position:absolute;top:50%;transform:translateY(-50%);
+    width:16px;height:16px;border-radius:50%;
+    background:#7ee787;
+    left:0;cursor:pointer;
+    box-shadow:0 0 6px rgba(126,231,135,0.8)}
 
   #hint{position:fixed;top:20px;left:50%;transform:translateX(-50%);
     background:rgba(248,81,73,.92);color:#fff;
@@ -170,12 +198,20 @@
   </div>
 </div>
 
-<div id="dpad">
-  <div class="dpad-grid">
-    <button class="dpad-btn" id="dpadUp" title="上">↑</button>
-    <button class="dpad-btn" id="dpadLeft" title="左">←</button>
-    <button class="dpad-btn" id="dpadRight" title="右">→</button>
-    <button class="dpad-btn" id="dpadDown" title="下">↓</button>
+<div id="rightCol">
+  <div id="dpad">
+    <div class="dpad-grid">
+      <button class="dpad-btn" id="dpadUp" title="上">↑</button>
+      <button class="dpad-btn" id="dpadLeft" title="左">←</button>
+      <button class="dpad-btn" id="dpadRight" title="右">→</button>
+      <button class="dpad-btn" id="dpadDown" title="下">↓</button>
+    </div>
+  </div>
+  <div id="sliderWrap">
+    <span id="sliderLabel">40%</span>
+    <div id="sliderTrack">
+      <div id="sliderThumb"></div>
+    </div>
   </div>
 </div>
 
@@ -222,19 +258,24 @@
   var OFFSET2_DEFAULT = 0;
   var OFFSET2_STEP = 2;
 
+  var FORK_RATIO_DEFAULT = 0.40;
+  var FORK_RATIO_MIN = 0.30;
+  var FORK_RATIO_MAX = 0.50;
+
   var WHITE_THRESHOLD = 230;
 
   var ARROW_MIN_W = 8,  ARROW_MAX_W = 30;
   var ARROW_MIN_H = 10, ARROW_MAX_H = 35;
 
   var SEARCH_X0 = 0;
-  var SEARCH_Y0 = Math.floor(CANVAS_H / 2);   // 600
-  var SEARCH_X1 = Math.floor(CANVAS_W / 2);   // 1000
-  var SEARCH_Y1 = CANVAS_H;                    // 1200
+  var SEARCH_Y0 = Math.floor(CANVAS_H / 2);
+  var SEARCH_X1 = Math.floor(CANVAS_W / 2);
+  var SEARCH_Y1 = CANVAS_H;
 
   var kInt = K_DEFAULT;
   var offset = OFFSET_DEFAULT;
   var offset2 = OFFSET2_DEFAULT;
+  var forkRatio = FORK_RATIO_DEFAULT;
 
   var startX = 600, startY = 500;
   var endX = 1400, endY = 700;
@@ -250,7 +291,12 @@
   var scale = 1, offsetX = 0, offsetY = 0;
 
   var panel = document.getElementById('panel');
+  var rightCol = document.getElementById('rightCol');
   var dpad = document.getElementById('dpad');
+  var sliderWrap = document.getElementById('sliderWrap');
+  var sliderTrack = document.getElementById('sliderTrack');
+  var sliderThumb = document.getElementById('sliderThumb');
+  var sliderLabel = document.getElementById('sliderLabel');
   var bToggle = document.getElementById('bToggle');
   var vK = document.getElementById('vK');
   var bKPlus = document.getElementById('bKPlus');
@@ -286,6 +332,11 @@
       var o2 = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2'), 10);
       if (!isNaN(o2)) offset2 = o2;
 
+      var fr = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'forkRatio'));
+      if (!isNaN(fr)) {
+        forkRatio = Math.max(FORK_RATIO_MIN, Math.min(FORK_RATIO_MAX, fr));
+      }
+
       var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
       var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
       var ex = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endX'));
@@ -302,6 +353,7 @@
       localStorage.setItem(STORAGE_PREFIX + 'kInt', String(kInt));
       localStorage.setItem(STORAGE_PREFIX + 'offset', String(offset));
       localStorage.setItem(STORAGE_PREFIX + 'offset2', String(offset2));
+      localStorage.setItem(STORAGE_PREFIX + 'forkRatio', String(forkRatio));
       localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
       localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
       localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
@@ -354,6 +406,30 @@
   }
   function updateOffset2Display() {
     vO2.textContent = String(offset2);
+  }
+
+  function setForkRatio(v) {
+    v = Math.max(FORK_RATIO_MIN, Math.min(FORK_RATIO_MAX, v));
+    // 取整到 1%
+    v = Math.round(v * 100) / 100;
+    if (v === forkRatio) return;
+    forkRatio = v;
+    updateSliderUI();
+    saveStored();
+  }
+
+  function updateSliderUI() {
+    if (!sliderTrack || !sliderThumb) return;
+    var range = FORK_RATIO_MAX - FORK_RATIO_MIN;
+    var t = range > 0 ? (forkRatio - FORK_RATIO_MIN) / range : 0;
+    t = Math.max(0, Math.min(1, t));
+
+    var trackW = sliderTrack.clientWidth;
+    var thumbW = sliderThumb.offsetWidth || 16;
+    var maxLeft = Math.max(0, trackW - thumbW);
+    sliderThumb.style.left = (t * maxLeft) + 'px';
+
+    sliderLabel.textContent = Math.round(forkRatio * 100) + '%';
   }
 
   function calcParabola(x0, y0, x1, y1, K) {
@@ -458,8 +534,9 @@
 
       // ===== 第二条线（浅绿 #b9f6ca）：起点 → 屏幕边缘 =====
       var dirSign = (endX >= startX) ? 1 : -1;
-      var x50 = (startX + endX) / 2;
-      var tTotal = Math.abs(endX - x50);
+      // 分叉点位置，由 forkRatio 决定
+      var xFork = startX + (endX - startX) * forkRatio;
+      var tTotal = Math.abs(endX - xFork);
 
       ctx.beginPath();
       var started = false;
@@ -472,12 +549,12 @@
         var y1 = p.a * lx2 * lx2 + p.b * lx2 + p.c;
         var y2;
 
-        var inFirstHalf = (dirSign > 0) ? (lx2 <= x50) : (lx2 >= x50);
+        var inFirstHalf = (dirSign > 0) ? (lx2 <= xFork) : (lx2 >= xFork);
 
         if (inFirstHalf || tTotal < 1e-9) {
           y2 = y1;
         } else {
-          var tDist = Math.abs(lx2 - x50);
+          var tDist = Math.abs(lx2 - xFork);
           var t = tDist / tTotal;
           y2 = y1 - offset2 * t * t;
         }
@@ -550,21 +627,44 @@
   }
   window.addEventListener('resize', resize);
 
-  // ===== 十字方向键面板尺寸同步 =====
-  function syncDpadSize() {
+  // ===== 右侧列尺寸同步 =====
+  function syncRightCol() {
     if (panel.classList.contains('collapsed')) {
-      dpad.style.display = 'none';
+      rightCol.style.display = 'none';
       return;
     }
-    dpad.style.display = 'block';
+    rightCol.style.display = 'flex';
+
     var rect = panel.getBoundingClientRect();
-    var h = rect.height;
-    dpad.style.left = (rect.right + 14) + 'px';
-    dpad.style.top = rect.top + 'px';
-    dpad.style.width = h + 'px';
-    dpad.style.height = h + 'px';
+    var totalH = rect.height;
+
+    var sliderH = 40;
+    var gap = 8;
+
+    var dpadH = Math.max(80, totalH - sliderH - gap);
+    // 正方形：宽 = 高
+    var colW = dpadH;
+
+    rightCol.style.top = rect.top + 'px';
+    rightCol.style.left = (rect.right + 14) + 'px';
+    rightCol.style.width = colW + 'px';
+    rightCol.style.height = totalH + 'px';
+
+    dpad.style.display = 'block';
+    dpad.style.width = colW + 'px';
+    dpad.style.height = dpadH + 'px';
+    dpad.style.padding = '8px';
+    dpad.style.boxSizing = 'border-box';
+
+    sliderWrap.style.display = 'flex';
+    sliderWrap.style.width = colW + 'px';
+    sliderWrap.style.height = sliderH + 'px';
+    sliderWrap.style.boxSizing = 'border-box';
+
+    // 等布局生效后再更新滑块位置
+    setTimeout(updateSliderUI, 0);
   }
-  window.addEventListener('resize', syncDpadSize);
+  window.addEventListener('resize', syncRightCol);
 
   var drag = null;
   var TOUCH_THRESHOLD = 30;
@@ -605,7 +705,7 @@
   bToggle.addEventListener('click', function () {
     var collapsed = panel.classList.toggle('collapsed');
     bToggle.textContent = collapsed ? '▼' : '■';
-    syncDpadSize();
+    syncRightCol();
   });
 
   window.__setPanelCollapsed = function (c) {
@@ -617,7 +717,7 @@
       panel.classList.remove('collapsed');
       bToggle.textContent = '■';
     }
-    syncDpadSize();
+    syncRightCol();
   };
 
   var holdTimer = null;
@@ -655,6 +755,39 @@
   bindHold(document.getElementById('dpadDown'),  function () { nudgeStart(0, 1); });
   bindHold(document.getElementById('dpadLeft'),  function () { nudgeStart(-1, 0); });
   bindHold(document.getElementById('dpadRight'), function () { nudgeStart(1, 0); });
+
+  // ===== 分叉点滑动条 =====
+  var sliderDragging = false;
+
+  function setForkFromClientX(clientX) {
+    var rect = sliderTrack.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    var thumbW = sliderThumb.offsetWidth || 16;
+    var maxLeft = Math.max(1, rect.width - thumbW);
+    var x = clientX - rect.left - thumbW / 2;
+    var t = x / maxLeft;
+    t = Math.max(0, Math.min(1, t));
+    var v = FORK_RATIO_MIN + t * (FORK_RATIO_MAX - FORK_RATIO_MIN);
+    setForkRatio(v);
+  }
+
+  sliderTrack.addEventListener('pointerdown', function (e) {
+    sliderDragging = true;
+    try { sliderTrack.setPointerCapture(e.pointerId); } catch (_) {}
+    setForkFromClientX(e.clientX);
+    e.preventDefault();
+  });
+  sliderTrack.addEventListener('pointermove', function (e) {
+    if (!sliderDragging) return;
+    setForkFromClientX(e.clientX);
+  });
+  sliderTrack.addEventListener('pointerup', function (e) {
+    sliderDragging = false;
+    try { sliderTrack.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
+  sliderTrack.addEventListener('pointercancel', function () {
+    sliderDragging = false;
+  });
 
   var npBuffer = '';
   var activeTarget = null;
@@ -913,9 +1046,11 @@
     kInt = K_DEFAULT;
     offset = OFFSET_DEFAULT;
     offset2 = OFFSET2_DEFAULT;
+    forkRatio = FORK_RATIO_DEFAULT;
     updateKDisplay();
     updateOffsetDisplay();
     updateOffset2Display();
+    updateSliderUI();
     saveStored();
   });
 
@@ -961,7 +1096,7 @@
       updateKDisplay();
       updateOffsetDisplay();
       updateOffset2Display();
-      syncDpadSize();
+      syncRightCol();
       resumeRender();
     }
   });
@@ -973,8 +1108,10 @@
   updateOffset2Display();
   resumeRender();
 
-  // 等布局完成后同步方向键面板尺寸
-  setTimeout(syncDpadSize, 0);
+  setTimeout(function () {
+    syncRightCol();
+    updateSliderUI();
+  }, 0);
 
 })();
 </script>
