@@ -64,6 +64,8 @@
   .btns button:hover{background:#30363d}
   .btns button.primary{background:#1f6feb;border-color:#1f6feb;color:#fff}
   .btns button.primary:hover{background:#388bfd}
+  .btns button.on{background:#F0883E;border-color:#F0883E;color:#fff}
+  .btns button.on:hover{background:#ffa657}
 
   /* ===== 右侧列：方向键 + 滑动条 ===== */
   #rightCol{
@@ -179,7 +181,8 @@
       </span>
     </div>
     <div class="btns">
-      <button id="bReset">恢复默认</button>
+      <button id="bReset" style="flex:1">恢复默认</button>
+      <button id="bLine" style="flex:1">直线 开</button>
     </div>
     <div class="kRow" style="margin-top:8px">
       <span></span>
@@ -248,7 +251,7 @@
   var CANVAS_H = 1200;
 
   var K_UNIT = 100000;
-  var K_DEFAULT = 25;   // 0.00025
+  var K_DEFAULT = 25;
   var K_MIN = 1;
 
   var OFFSET_DEFAULT = 40;
@@ -276,6 +279,7 @@
   var offset = OFFSET_DEFAULT;
   var offset2 = OFFSET2_DEFAULT;
   var forkRatio = FORK_RATIO_DEFAULT;
+  var showLine = false;
 
   var startX = 600, startY = 500;
   var endX = 1400, endY = 700;
@@ -307,6 +311,7 @@
   var vO2 = document.getElementById('vO2');
   var bOPlus2 = document.getElementById('bOPlus2');
   var bOMinus2 = document.getElementById('bOMinus2');
+  var bLine = document.getElementById('bLine');
   var numPad = document.getElementById('numPad');
   var npDisplay = document.getElementById('npDisplay');
   var hintEl = document.getElementById('hint');
@@ -337,6 +342,9 @@
         forkRatio = Math.max(FORK_RATIO_MIN, Math.min(FORK_RATIO_MAX, fr));
       }
 
+      var sl = localStorage.getItem(STORAGE_PREFIX + 'showLine');
+      showLine = (sl === '1');
+
       var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
       var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
       var ex = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endX'));
@@ -354,6 +362,7 @@
       localStorage.setItem(STORAGE_PREFIX + 'offset', String(offset));
       localStorage.setItem(STORAGE_PREFIX + 'offset2', String(offset2));
       localStorage.setItem(STORAGE_PREFIX + 'forkRatio', String(forkRatio));
+      localStorage.setItem(STORAGE_PREFIX + 'showLine', showLine ? '1' : '0');
       localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
       localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
       localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
@@ -410,7 +419,6 @@
 
   function setForkRatio(v) {
     v = Math.max(FORK_RATIO_MIN, Math.min(FORK_RATIO_MAX, v));
-    // 取整到 1%
     v = Math.round(v * 100) / 100;
     if (v === forkRatio) return;
     forkRatio = v;
@@ -430,6 +438,17 @@
     sliderThumb.style.left = (t * maxLeft) + 'px';
 
     sliderLabel.textContent = Math.round(forkRatio * 100) + '%';
+  }
+
+  function updateLineBtn() {
+    if (!bLine) return;
+    if (showLine) {
+      bLine.textContent = '直线 关';
+      bLine.classList.add('on');
+    } else {
+      bLine.textContent = '直线 开';
+      bLine.classList.remove('on');
+    }
   }
 
   function calcParabola(x0, y0, x1, y1, K) {
@@ -504,11 +523,25 @@
 
     drawBackgroundImage();
 
+    // ===== 直线（橙色）：画在最下层 =====
+    if (showLine) {
+      ctx.save();
+      ctx.strokeStyle = '#F0883E';
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(toScreenX(startX), toScreenY(startY));
+      ctx.lineTo(toScreenX(endX), toScreenY(endY));
+      ctx.stroke();
+      ctx.restore();
+    }
+
     var K = getK();
     var p = calcParabola(startX, startY, endX, endY, K);
 
     if (p) {
-      // ===== 第一条线（绿色）：起点 → 终点 =====
+      // ===== 第一条线（绿色）=====
       var xs = Math.min(startX, endX);
       var xe = Math.max(startX, endX);
       var span = xe - xs;
@@ -532,9 +565,8 @@
       ctx.stroke();
       ctx.restore();
 
-      // ===== 第二条线（浅绿 #b9f6ca）：起点 → 屏幕边缘 =====
+      // ===== 第二条线（浅绿）=====
       var dirSign = (endX >= startX) ? 1 : -1;
-      // 分叉点位置，由 forkRatio 决定
       var xFork = startX + (endX - startX) * forkRatio;
       var tTotal = Math.abs(endX - xFork);
 
@@ -627,7 +659,6 @@
   }
   window.addEventListener('resize', resize);
 
-  // ===== 右侧列尺寸同步 =====
   function syncRightCol() {
     if (panel.classList.contains('collapsed')) {
       rightCol.style.display = 'none';
@@ -642,7 +673,6 @@
     var gap = 8;
 
     var dpadH = Math.max(80, totalH - sliderH - gap);
-    // 正方形：宽 = 高
     var colW = dpadH;
 
     rightCol.style.top = rect.top + 'px';
@@ -661,7 +691,6 @@
     sliderWrap.style.height = sliderH + 'px';
     sliderWrap.style.boxSizing = 'border-box';
 
-    // 等布局生效后再更新滑块位置
     setTimeout(updateSliderUI, 0);
   }
   window.addEventListener('resize', syncRightCol);
@@ -721,7 +750,7 @@
   };
 
   var holdTimer = null;
-  var HOLD_INTERVAL = 200;
+  var HOLD_INTERVAL = 100;
 
   function startHold(fn) {
     fn();
@@ -745,7 +774,6 @@
   bindHold(bOPlus2, function () { setOffset2(offset2 + OFFSET2_STEP); });
   bindHold(bOMinus2, function () { setOffset2(offset2 - OFFSET2_STEP); });
 
-  // ===== 十字方向键：微调起点 =====
   function nudgeStart(dx, dy) {
     startX += dx;
     startY += dy;
@@ -756,7 +784,6 @@
   bindHold(document.getElementById('dpadLeft'),  function () { nudgeStart(-1, 0); });
   bindHold(document.getElementById('dpadRight'), function () { nudgeStart(1, 0); });
 
-  // ===== 分叉点滑动条 =====
   var sliderDragging = false;
 
   function setForkFromClientX(clientX) {
@@ -1054,6 +1081,12 @@
     saveStored();
   });
 
+  bLine.addEventListener('click', function () {
+    showLine = !showLine;
+    updateLineBtn();
+    saveStored();
+  });
+
   var bFloating = document.getElementById('bFloating');
   if (bFloating) {
     bFloating.addEventListener('click', function () {
@@ -1096,6 +1129,7 @@
       updateKDisplay();
       updateOffsetDisplay();
       updateOffset2Display();
+      updateLineBtn();
       syncRightCol();
       resumeRender();
     }
@@ -1106,6 +1140,7 @@
   updateKDisplay();
   updateOffsetDisplay();
   updateOffset2Display();
+  updateLineBtn();
   resumeRender();
 
   setTimeout(function () {
