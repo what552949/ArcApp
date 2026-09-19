@@ -288,7 +288,9 @@
 
   var kInt = K_DEFAULT;
   var offset = OFFSET_DEFAULT;
-  var offset2 = OFFSET2_DEFAULT;
+  // 偏移量分高抛低抛两套
+  var offset2Low = OFFSET2_DEFAULT;
+  var offset2High = OFFSET2_DEFAULT;
   var forkRatio = FORK_RATIO_DEFAULT;
   var showLine = false;
   var highArcMode = false;
@@ -339,6 +341,22 @@
     document.body.classList.add('mode-main');
   }
 
+  function getOffset2() {
+    return highArcMode ? offset2High : offset2Low;
+  }
+  function setOffset2Value(v) {
+    v = Math.round(v);
+    if (highArcMode) {
+      if (v === offset2High) return;
+      offset2High = v;
+    } else {
+      if (v === offset2Low) return;
+      offset2Low = v;
+    }
+    updateOffset2Display();
+    saveStored();
+  }
+
   function loadStored() {
     try {
       var k = parseInt(localStorage.getItem(STORAGE_PREFIX + 'kInt'), 10);
@@ -347,8 +365,15 @@
       var o = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset'), 10);
       if (!isNaN(o)) offset = Math.max(OFFSET_MIN, Math.min(OFFSET_MAX, o));
 
-      var o2 = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2'), 10);
-      if (!isNaN(o2)) offset2 = o2;
+      var o2Low = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2Low'), 10);
+      if (!isNaN(o2Low)) offset2Low = o2Low;
+
+      var o2High = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2High'), 10);
+      if (!isNaN(o2High)) offset2High = o2High;
+
+      // 兼容旧数据：如果只有 offset2，把它作为低抛
+      var o2Old = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2'), 10);
+      if (!isNaN(o2Old) && isNaN(o2Low)) offset2Low = o2Old;
 
       var fr = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'forkRatio'));
       if (!isNaN(fr)) {
@@ -376,7 +401,8 @@
     try {
       localStorage.setItem(STORAGE_PREFIX + 'kInt', String(kInt));
       localStorage.setItem(STORAGE_PREFIX + 'offset', String(offset));
-      localStorage.setItem(STORAGE_PREFIX + 'offset2', String(offset2));
+      localStorage.setItem(STORAGE_PREFIX + 'offset2Low', String(offset2Low));
+      localStorage.setItem(STORAGE_PREFIX + 'offset2High', String(offset2High));
       localStorage.setItem(STORAGE_PREFIX + 'forkRatio', String(forkRatio));
       localStorage.setItem(STORAGE_PREFIX + 'showLine', showLine ? '1' : '0');
       localStorage.setItem(STORAGE_PREFIX + 'highArcMode', highArcMode ? '1' : '0');
@@ -423,15 +449,8 @@
     vO.textContent = String(offset);
   }
 
-  function setOffset2(newO) {
-    newO = Math.round(newO);
-    if (newO === offset2) return;
-    offset2 = newO;
-    updateOffset2Display();
-    saveStored();
-  }
   function updateOffset2Display() {
-    vO2.textContent = String(offset2);
+    vO2.textContent = String(getOffset2());
   }
 
   function setForkRatio(v) {
@@ -573,6 +592,7 @@
 
     var K = getK();
     var p = calcParabola(startX, startY, endX, endY, K, highArcMode);
+    var offset2 = getOffset2();
 
     if (p) {
       // ===== 第一条线（绿色）=====
@@ -786,6 +806,7 @@
   bHighArc.addEventListener('click', function () {
     highArcMode = !highArcMode;
     updateHighArcBtn();
+    updateOffset2Display();
     saveStored();
   });
 
@@ -811,8 +832,8 @@
   bindHold(bKMinus, function () { setK(kInt - 1); });
   bindHold(bOPlus, function () { setOffset(offset + 1); });
   bindHold(bOMinus, function () { setOffset(offset - 1); });
-  bindHold(bOPlus2, function () { setOffset2(offset2 + OFFSET2_STEP); });
-  bindHold(bOMinus2, function () { setOffset2(offset2 - OFFSET2_STEP); });
+  bindHold(bOPlus2, function () { setOffset2Value(getOffset2() + OFFSET2_STEP); });
+  bindHold(bOMinus2, function () { setOffset2Value(getOffset2() - OFFSET2_STEP); });
 
   function nudgeStart(dx, dy) {
     startX += dx;
@@ -1112,7 +1133,8 @@
   document.getElementById('bReset').addEventListener('click', function () {
     kInt = K_DEFAULT;
     offset = OFFSET_DEFAULT;
-    offset2 = OFFSET2_DEFAULT;
+    offset2Low = OFFSET2_DEFAULT;
+    offset2High = OFFSET2_DEFAULT;
     forkRatio = FORK_RATIO_DEFAULT;
     updateKDisplay();
     updateOffsetDisplay();
