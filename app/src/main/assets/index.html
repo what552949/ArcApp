@@ -288,7 +288,6 @@
 
   var kInt = K_DEFAULT;
   var offset = OFFSET_DEFAULT;
-  // 偏移量分高抛低抛两套
   var offset2Low = OFFSET2_DEFAULT;
   var offset2High = OFFSET2_DEFAULT;
   var forkRatio = FORK_RATIO_DEFAULT;
@@ -371,7 +370,6 @@
       var o2High = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2High'), 10);
       if (!isNaN(o2High)) offset2High = o2High;
 
-      // 兼容旧数据：如果只有 offset2，把它作为低抛
       var o2Old = parseInt(localStorage.getItem(STORAGE_PREFIX + 'offset2'), 10);
       if (!isNaN(o2Old) && isNaN(o2Low)) offset2Low = o2Old;
 
@@ -576,7 +574,6 @@
 
     drawBackgroundImage();
 
-    // ===== 直线（橙色）：画在最下层 =====
     if (showLine) {
       ctx.save();
       ctx.strokeStyle = '#F0883E';
@@ -625,8 +622,8 @@
       var tTotal = Math.abs(endX - xFork);
 
       ctx.beginPath();
-      var started = false;
       var drawEndX = dirSign > 0 ? CANVAS_W : 0;
+      var needMoveTo = true;
 
       for (var lx2 = startX;
            dirSign > 0 ? lx2 <= drawEndX : lx2 >= drawEndX;
@@ -645,12 +642,22 @@
           y2 = y1 - offset2 * t * t;
         }
 
-        if (y2 < 0 || y2 > CANVAS_H) break;
+        if (!isFinite(y2)) continue;
+
+        var inScreen = (y2 >= 0 && y2 <= CANVAS_H);
+        if (!inScreen) {
+          needMoveTo = true;
+          continue;
+        }
 
         var sx2 = toScreenX(lx2);
         var sy2 = toScreenY(y2);
-        if (!started) { ctx.moveTo(sx2, sy2); started = true; }
-        else ctx.lineTo(sx2, sy2);
+        if (needMoveTo) {
+          ctx.moveTo(sx2, sy2);
+          needMoveTo = false;
+        } else {
+          ctx.lineTo(sx2, sy2);
+        }
       }
 
       ctx.save();
