@@ -32,6 +32,17 @@
     font-family:inherit}
   #bToggle:hover{background:#30363d}
 
+  #bHighArc{
+    margin-left:auto;
+    padding:3px 10px;
+    background:#21262d;border:1px solid #30363d;border-radius:5px;
+    color:#c9d1d9;font-size:11px;line-height:1.3;
+    cursor:pointer;font-family:inherit;
+    white-space:nowrap}
+  #bHighArc:hover{background:#30363d}
+  #bHighArc.on{background:#F0883E;border-color:#F0883E;color:#fff}
+  #bHighArc.on:hover{background:#ffa657}
+
   #panel.collapsed{width:auto;padding:8px}
   #panel.collapsed #titleRow h1{display:none}
   #panel.collapsed #body{display:none}
@@ -67,7 +78,6 @@
   .btns button.on{background:#F0883E;border-color:#F0883E;color:#fff}
   .btns button.on:hover{background:#ffa657}
 
-  /* ===== 右侧列：方向键 + 滑动条 ===== */
   #rightCol{
     position:fixed;top:14px;left:308px;
     display:flex;flex-direction:column;gap:8px;
@@ -162,6 +172,7 @@
   <div id="titleRow">
     <button id="bToggle" title="折叠 / 展开">■</button>
     <h1>抛物线参数</h1>
+    <button id="bHighArc">高抛 开</button>
   </div>
   <div id="body">
     <div class="kRow">
@@ -280,6 +291,7 @@
   var offset2 = OFFSET2_DEFAULT;
   var forkRatio = FORK_RATIO_DEFAULT;
   var showLine = false;
+  var highArcMode = false;
 
   var startX = 600, startY = 500;
   var endX = 1400, endY = 700;
@@ -302,6 +314,7 @@
   var sliderThumb = document.getElementById('sliderThumb');
   var sliderLabel = document.getElementById('sliderLabel');
   var bToggle = document.getElementById('bToggle');
+  var bHighArc = document.getElementById('bHighArc');
   var vK = document.getElementById('vK');
   var bKPlus = document.getElementById('bKPlus');
   var bKMinus = document.getElementById('bKMinus');
@@ -345,6 +358,9 @@
       var sl = localStorage.getItem(STORAGE_PREFIX + 'showLine');
       showLine = (sl === '1');
 
+      var ha = localStorage.getItem(STORAGE_PREFIX + 'highArcMode');
+      highArcMode = (ha === '1');
+
       var sx = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startX'));
       var sy = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'startY'));
       var ex = parseFloat(localStorage.getItem(STORAGE_PREFIX + 'endX'));
@@ -363,6 +379,7 @@
       localStorage.setItem(STORAGE_PREFIX + 'offset2', String(offset2));
       localStorage.setItem(STORAGE_PREFIX + 'forkRatio', String(forkRatio));
       localStorage.setItem(STORAGE_PREFIX + 'showLine', showLine ? '1' : '0');
+      localStorage.setItem(STORAGE_PREFIX + 'highArcMode', highArcMode ? '1' : '0');
       localStorage.setItem(STORAGE_PREFIX + 'startX', String(startX));
       localStorage.setItem(STORAGE_PREFIX + 'startY', String(startY));
       localStorage.setItem(STORAGE_PREFIX + 'endX', String(endX));
@@ -451,7 +468,18 @@
     }
   }
 
-  function calcParabola(x0, y0, x1, y1, K) {
+  function updateHighArcBtn() {
+    if (!bHighArc) return;
+    if (highArcMode) {
+      bHighArc.textContent = '高抛 关';
+      bHighArc.classList.add('on');
+    } else {
+      bHighArc.textContent = '高抛 开';
+      bHighArc.classList.remove('on');
+    }
+  }
+
+  function calcParabola(x0, y0, x1, y1, K, highArc) {
     var d = x1 - x0;
     var h = y1 - y0;
     var A = K * d * d;
@@ -462,7 +490,13 @@
     var sq = Math.sqrt(disc);
     var t1 = (d - sq) / (2 * A);
     var t2 = (d + sq) / (2 * A);
-    var t = Math.abs(t1) < Math.abs(t2) ? t1 : t2;
+
+    var t;
+    if (highArc) {
+      t = Math.abs(t1) > Math.abs(t2) ? t1 : t2;
+    } else {
+      t = Math.abs(t1) < Math.abs(t2) ? t1 : t2;
+    }
 
     var a = K * (1 + t * t);
     var b = -t - 2 * a * x0;
@@ -538,7 +572,7 @@
     }
 
     var K = getK();
-    var p = calcParabola(startX, startY, endX, endY, K);
+    var p = calcParabola(startX, startY, endX, endY, K, highArcMode);
 
     if (p) {
       // ===== 第一条线（绿色）=====
@@ -748,6 +782,12 @@
     }
     syncRightCol();
   };
+
+  bHighArc.addEventListener('click', function () {
+    highArcMode = !highArcMode;
+    updateHighArcBtn();
+    saveStored();
+  });
 
   var holdTimer = null;
   var HOLD_INTERVAL = 100;
@@ -1130,6 +1170,7 @@
       updateOffsetDisplay();
       updateOffset2Display();
       updateLineBtn();
+      updateHighArcBtn();
       syncRightCol();
       resumeRender();
     }
@@ -1141,6 +1182,7 @@
   updateOffsetDisplay();
   updateOffset2Display();
   updateLineBtn();
+  updateHighArcBtn();
   resumeRender();
 
   setTimeout(function () {
